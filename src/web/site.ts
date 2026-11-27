@@ -1,4 +1,4 @@
-import { h, doc, LOGO, Safe, flash, ICON } from './html.ts';
+import { h, doc, LOGO, Safe, flash, ICON, ASSET_V } from './html.ts';
 import { PLATFORM, brl } from '../lib/core.ts';
 
 /* Site de vendas. Identidade em DESIGN.md: branco, preto quente, vermelho de cadeira de barbeiro;
@@ -33,8 +33,8 @@ const ROLES_TABLE: [string, string, string, string, string][] = [
 
 /** Recorte de tela real; no celular pode trocar por outro recorte (mesma tela, versão de celular). */
 const shot = (o: { src: string; w: number; h: number; alt: string; mob?: { src: string; w: number; h: number }; eager?: boolean; cls?: string }) => h`<picture class="${o.cls ?? ''}">
-  ${o.mob ? h`<source media="(max-width: 700px)" srcset="/static/img/${o.mob.src}" width="${o.mob.w}" height="${o.mob.h}">` : ''}
-  <img src="/static/img/${o.src}" alt="${o.alt}" width="${o.w}" height="${o.h}" ${o.eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"></picture>`;
+  ${o.mob ? h`<source media="(max-width: 700px)" srcset="/static/img/${o.mob.src}?v=${ASSET_V}" width="${o.mob.w}" height="${o.mob.h}">` : ''}
+  <img src="/static/img/${o.src}?v=${ASSET_V}" alt="${o.alt}" width="${o.w}" height="${o.h}" ${o.eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"></picture>`;
 
 const launchNotice = h`<p>Você já pode testar o Cadeira. A contratação paga abre após a fase de lançamento.</p>`;
 export function home(o: { trialDays: number; user: boolean; plans: any[]; billingOpen?: boolean }) {
@@ -51,7 +51,7 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
         <ul class="promises"><li>${o.trialDays} dias grátis</li><li>Sem cartão para testar</li><li>Sem taxa por agendamento</li></ul>
       </div>
       <div class="hero-demo" aria-label="Exemplo: o cliente escolhe o horário e recebe o lembrete">
-        <figure class="phone">${shot({ src: 'demo-cliente-horario.jpg', w: 660, h: 1428, alt: 'Página de agendamento no celular do cliente, com os horários livres de amanhã', eager: true })}</figure>
+        <figure class="phone">${shot({ src: 'demo-cliente-horario.jpg', w: 780, h: 1688, alt: 'Página de agendamento no celular do cliente, com os horários livres de amanhã', eager: true })}</figure>
         <div class="bubble" aria-hidden="true">
           <small>Mensagem pronta no WhatsApp da barbearia</small>
           <p>Olá, Caio! Passando para lembrar do seu horário amanhã às 15:00 na Navalha &amp; Co. com Diego.</p>
@@ -70,7 +70,7 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
           <li><b>O próximo horário livre</b> de cada um, para encaixar quem chega sem marcar.</li>
         </ol>
       </div>
-      <figure class="screen">${shot({ src: 'demo-hoje.jpg', w: 1440, h: 860, alt: 'Tela Hoje do painel: próximo cliente às 15:00, resumo do dia e a linha do dia de cada barbeiro', mob: { src: 'demo-hoje-celular.jpg', w: 660, h: 1428 } })}</figure>
+      <figure class="screen">${shot({ src: 'demo-hoje.jpg', w: 2096, h: 1252, alt: 'Tela Hoje do painel: próximo cliente às 15:00, resumo do dia e a linha do dia de cada barbeiro', mob: { src: 'demo-hoje-celular.jpg', w: 780, h: 1688 } })}</figure>
     </div></section>
 
     <section class="loop"><div class="wrap">
@@ -82,8 +82,8 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
           <li><b>O cliente abre o link</b> e confirma presença, remarca para um horário livre ou cancela.</li>
           <li><b>No painel</b> aparece quem confirmou. Se ele cancelou, o horário já voltou para a agenda.</li>
         </ol>
-        <figure class="screen">${shot({ src: 'demo-lembretes.jpg', w: 1416, h: 768, alt: 'Lista de lembretes de amanhã: horário, cliente, serviço, barbeiro e o botão WhatsApp de cada um', mob: { src: 'demo-lembretes-celular.jpg', w: 660, h: 1428 } })}</figure>
-        <figure class="phone sm">${shot({ src: 'demo-cliente-link.jpg', w: 660, h: 1428, alt: 'Tela do cliente com os botões confirmar presença, remarcar e cancelar' })}</figure>
+        <figure class="screen">${shot({ src: 'demo-lembretes.jpg', w: 1416, h: 768, alt: 'Lista de lembretes de amanhã: horário, cliente, serviço, barbeiro e o botão WhatsApp de cada um', mob: { src: 'demo-lembretes-celular.jpg', w: 780, h: 1688 } })}</figure>
+        <figure class="phone sm">${shot({ src: 'demo-cliente-link.jpg', w: 780, h: 1688, alt: 'Tela do cliente com os botões confirmar presença, remarcar e cancelar' })}</figure>
       </div>
       <p class="note">O envio é por um toque, do número da própria barbearia. Não há mensagem automática nem custo por mensagem.</p>
     </div></section>
@@ -93,7 +93,7 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
         <p class="kicker">Caixa</p>
         <h2>Atendeu, fechou a comanda.</h2>
         <p class="body">Serviço extra, pomada, desconto e pagamento em Pix, dinheiro com troco, débito, crédito ou dividido em dois. No fim do dia, o caixa mostra quanto entrou em cada forma e quanto devia ter na gaveta.</p>
-        <figure class="screen pay">${shot({ src: 'demo-comanda.jpg', w: 682, h: 864, alt: 'Comanda de um corte de 45 reais com as formas de pagamento Pix, dinheiro, débito, crédito ou outro' })}</figure>
+        <figure class="screen pay">${shot({ src: 'demo-comanda.jpg', w: 682, h: 756, alt: 'Comanda de um corte de 45 reais com as formas de pagamento Pix, dinheiro, débito, crédito ou outro' })}</figure>
       </div>
       <div>
         <p class="kicker">Comissão</p>

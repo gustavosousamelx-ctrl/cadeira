@@ -14,8 +14,8 @@ async function shot(o: { name: string; url: string; w: number; h: number; scale?
   await page.goto(BASE + o.url, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
   const path = join(OUT, `demo-${o.name}.jpg`);
-  if (o.sel) await page.locator(o.sel).first().screenshot({ path, type: 'jpeg', quality: 80 });
-  else await page.screenshot({ path, type: 'jpeg', quality: 80, clip: o.clip });
+  if (o.sel) await page.locator(o.sel).first().screenshot({ path, type: 'jpeg', quality: 92 });
+  else await page.screenshot({ path, type: 'jpeg', quality: 92, clip: o.clip });
   await ctx.close();
   console.log('ok', o.name);
 }

@@ -44,7 +44,7 @@ export const LOGO = raw(`<svg class="mk" viewBox="0 0 24 24" width="26" height="
 export const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="5.5" fill="#17130F"/><g transform="translate(2.4 2.4) scale(.8)" color="#fff">${MARK}</g></svg>`;
 
 /** Versão dos arquivos estáticos: muda a cada publicação, então o navegador nunca usa CSS antigo. */
-const ASSET_V = process.env.ASSET_VERSION || Date.now().toString(36);
+export const ASSET_V = process.env.ASSET_VERSION || Date.now().toString(36);
 const FONT = 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400;500;600;700&display=swap';
 export function doc(o: { title: string; body: Safe; css: string[]; fonts?: string[]; bodyClass?: string; style?: string; desc?: string; scripts?: string[]; head?: Safe; noindex?: boolean }) {
   return '<!doctype html>' + h`<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
