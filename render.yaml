@@ -28,6 +28,11 @@ services:
         fromDatabase:
           name: cadeira-db
           property: connectionString
+      # rede interna do Render: o banco usa certificado proprio, sem SSL publico
+      - key: DATABASE_SSL
+        value: "0"
+      - key: PUBLIC_HOST
+        value: cadeira.onrender.com
       - key: SUPPORT_EMAIL
         value: gustavosousamelx@gmail.com
       - key: ADMIN_EMAIL
