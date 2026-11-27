@@ -50,7 +50,7 @@ function frame(d: ShopData, title: string, main: Safe, opts: { noindex?: boolean
     <div class="sh-id"><h1>${s.name}</h1><p>${status}${s.address ? h` · <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address)}" target="_blank" rel="noopener">${s.address}</a>` : ''}</p></div>
   </div></header>
   <div class="wrap sh-grid">
-  <main class="sh-main">${main}</main>
+  <main class="sh-main" id="conteudo">${main}</main>
   <aside class="sh-info">
     <section><h2>Horários</h2><dl class="hours">${[1, 2, 3, 4, 5, 6, 0].map((wd) => { const iv = shopH.filter((x) => x.weekday === wd); return h`<dt class="${wd === nowL.weekday ? 'today' : ''}">${DOWL[wd]}</dt><dd class="${wd === nowL.weekday ? 'today' : ''}">${iv.length ? iv.map((x) => `${hhmm(x.start_min)}–${hhmm(x.end_min)}`).join(', ') : 'Fechado'}</dd>`; })}</dl></section>
     <section><h2>Contato</h2>
@@ -66,10 +66,10 @@ function frame(d: ShopData, title: string, main: Safe, opts: { noindex?: boolean
 }
 
 export function unavailable(name: string) {
-  return doc({ title: name, css: ['site.css'], body: h`<main class="center-msg"><h1>${name}</h1><p>O agendamento online está temporariamente indisponível. Fale direto com a barbearia para marcar seu horário.</p></main>` });
+  return doc({ title: name, css: ['site.css'], body: h`<main class="center-msg" id="conteudo"><h1>${name}</h1><p>O agendamento online está temporariamente indisponível. Fale direto com a barbearia para marcar seu horário.</p></main>` });
 }
 export function notPublished(name: string) {
-  return doc({ title: name, css: ['site.css'], body: h`<main class="center-msg"><h1>${name}</h1><p>Esta página de agendamento ainda não foi publicada.</p></main>` });
+  return doc({ title: name, css: ['site.css'], body: h`<main class="center-msg" id="conteudo"><h1>${name}</h1><p>Esta página de agendamento ainda não foi publicada.</p></main>` });
 }
 
 /** Parâmetros do fluxo ficam na URL: voltar no navegador preserva as escolhas. */

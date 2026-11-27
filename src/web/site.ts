@@ -6,7 +6,6 @@ import { PLATFORM, brl } from '../lib/core.ts';
    (scripts/recortes.ts), em tamanho legível, cada uma explicando uma parte da rotina. */
 function shell(title: string, main: Safe, o: { desc?: string; user?: boolean; home?: boolean } = {}) {
   return doc({ title, desc: o.desc, css: ['site.css'], scripts: ['forms.js'], bodyClass: 'site', body: h`
-  <a class="skip" href="#conteudo">Pular para o conteúdo</a>
   <header class="top"><div class="wrap">
     <a class="brand" href="/" aria-label="${PLATFORM.name}, início">${LOGO}<span>${PLATFORM.name}</span></a>
     <nav aria-label="Principal">

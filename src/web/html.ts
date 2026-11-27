@@ -65,7 +65,8 @@ ${o.css.map((c) => h`<link rel="stylesheet" href="/static/${c}?v=${ASSET_V}">`)}
 ${(o.scripts ?? []).map((s) => h`<script src="/static/${s}?v=${ASSET_V}" defer></script>`)}
 <link rel="icon" href="/favicon.ico" type="image/svg+xml">
 </head><body class="${o.bodyClass ?? ''}" ${o.style ? h`style="${o.style}"` : ''}>
-  <a class="skip" href="#conteudo">Pular para o conteúdo</a><div id="conteudo">${o.body}</div></body></html>`.s;
+  <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+${o.body}</body></html>`.s;
 }
 
 export const MESSAGES: Record<string, string> = {

@@ -18,7 +18,7 @@ function layout(u: User, active: string, title: string, content: Safe, f: { ok?:
       <nav class="nav">${nav.map(([k, l, i]) => h`<a href="/admin${k ? '/' + k : ''}" class="${active === k ? 'on' : ''}">${ICON[i]}<span>${l}</span></a>`)}</nav>
       <div class="side-foot"><a href="/app">${ICON.left}<span>Meu painel</span></a><form method="post" action="/sair"><button>${ICON.out}<span>Sair</span></button></form></div></aside>
     <div class="mtop"><a class="brand" href="/admin" aria-label="Administração: visão geral">${LOGO}</a><b>Administração</b></div>
-    <main class="main"><header class="pagehead"><h1>${title}</h1></header>${flash(f.ok, f.err)}${content}</main></div>` });
+    <main class="main" id="conteudo"><header class="pagehead"><h1>${title}</h1></header>${flash(f.ok, f.err)}${content}</main></div>` });
 }
 
 export function overview(u: User, m: any, f: any) {
