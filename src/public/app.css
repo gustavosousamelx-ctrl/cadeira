@@ -339,6 +339,7 @@ nav.week a.on small,nav.week a.on em{color:#BDB5AA}nav.week a.on b{color:#fff}
 .co-side{position:sticky;top:20px;display:grid;gap:14px;background:var(--night);border-color:var(--night);color:#fff}
 .co-side .k{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#BDB5AA}
 .co-total{font-size:40px;letter-spacing:-.03em;line-height:1;margin-top:-6px}
+.cash-only[hidden]{display:none}
 .co-side legend,.co-side label,.co-side .hint{color:#DCD5CB}
 .co-side .input{background:#29221C;border-color:#3D342C;color:#fff}
 .co-side .affix{background:#29221C;border-color:#3D342C}

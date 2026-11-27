@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 export const PLATFORM = {
   // Marca provisória da plataforma. Trocar aqui (ou via env) muda todo o site comercial e o painel.
   name: process.env.PLATFORM_NAME || 'Cadeira',
-  supportEmail: process.env.SUPPORT_EMAIL || 'suporte@exemplo.com.br',
+  supportEmail: process.env.SUPPORT_EMAIL || '',
   supportPhone: process.env.SUPPORT_WHATSAPP || '',
 };
 export const RESERVED_SLUGS = new Set(['app', 'api', 'admin', 'b', 'static', 'entrar', 'sair', 'criar-conta', 'planos', 'ajuda', 'suporte', 'termos', 'privacidade', 'www', 'demo']);

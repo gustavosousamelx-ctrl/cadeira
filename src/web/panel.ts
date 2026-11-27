@@ -270,7 +270,7 @@ export function remindersPage(ctx: Ctx, date: string, todayD: string, rows: any[
   const nowMs = clock.now().getTime();
   const at = (v: any) => hhmm(toLocal(new Date(v), ctx.shop.timezone).minutes);
   const state = (r: any) => r.client_confirmed_at ? h`<span class="rm ok">${ICON.check} Confirmou</span>`
-    : r.reminded_at ? h`<span class="rm sent">WhatsApp aberto ${at(r.reminded_at)}</span>` : h`<span class="rm none">Sem lembrete</span>`;
+    : r.reminded_at ? h`<span class="rm sent">Abertura solicitada ${at(r.reminded_at)}</span>` : h`<span class="rm none">Sem lembrete</span>`;
   const bar = h`<div class="agbar">
     <div class="segnav"><a href="?date=${todayD}" class="${date === todayD ? 'on' : ''}">Hoje</a><a href="?date=${tomorrow}" class="${date === tomorrow ? 'on' : ''}">Amanhã</a></div>
     <form method="get" class="datepick"><label class="sr" for="dt">Ir para data</label><input id="dt" type="date" name="date" value="${date}" min="${todayD}" class="input sm"><button class="btn sm">Ir</button></form></div>`;
@@ -278,13 +278,13 @@ export function remindersPage(ctx: Ctx, date: string, todayD: string, rows: any[
     <p class="lead-hint">Mande na véspera, pelo WhatsApp da barbearia. A mensagem já leva o link para o cliente <b>confirmar presença</b>, <b>remarcar</b> ou <b>cancelar</b> e liberar o horário para outra pessoa.</p>
     <div class="summary-line">
       <div><span class="k">${date === todayD ? 'Hoje' : date === tomorrow ? 'Amanhã' : shortDay(date)}</span><b>${rows.length} ${rows.length === 1 ? 'horário' : 'horários'}</b></div>
-      <div><span class="k">WhatsApp aberto</span><b>${sent}</b></div>
+      <div><span class="k">Abertura solicitada</span><b>${sent}</b></div>
       <div><span class="k">Confirmaram</span><b>${conf}</b></div>
       <div><span class="k">Falta lembrar</span><b class="${rows.length - sent ? 'warn-t' : ''}">${rows.filter((r) => !r.reminded_at && !r.client_confirmed_at && new Date(r.starts_at).getTime() > nowMs).length}</b></div>
     </div>
     <section class="block"><div class="block-head"><h2>${dayLabel(date)}</h2></div>
     ${rows.length ? h`<ul class="rows reminders">${rows.map((r) => h`<li class="row">
-        <a class="row-main" href="${base}/reserva/${r.id}"><span class="t">${hhmm(r.startMin)}</span><span class="who"><b>${r.customer}</b><small>${r.services ?? ''} · ${r.pro_name.split(' ')[0]}<span class="rm-m ${r.client_confirmed_at ? 'ok' : r.reminded_at ? 'sent' : ''}"> · ${r.client_confirmed_at ? 'Confirmou' : r.reminded_at ? `WhatsApp aberto ${at(r.reminded_at)}` : 'Sem lembrete'}</span></small></span></a>
+        <a class="row-main" href="${base}/reserva/${r.id}"><span class="t">${hhmm(r.startMin)}</span><span class="who"><b>${r.customer}</b><small>${r.services ?? ''} · ${r.pro_name.split(' ')[0]}<span class="rm-m ${r.client_confirmed_at ? 'ok' : r.reminded_at ? 'sent' : ''}"> · ${r.client_confirmed_at ? 'Confirmou' : r.reminded_at ? `Abertura solicitada ${at(r.reminded_at)}` : 'Sem lembrete'}</span></small></span></a>
         ${state(r)}
         ${new Date(r.starts_at).getTime() <= nowMs ? h`<span class="muted">Já passou</span>`
           : r.client_confirmed_at ? ''

@@ -14,7 +14,7 @@ function splitPick(name: string, phone: string): [string, string] {
   return [name.slice(0, i).trim(), digits(phone) ? phone : digits(name.slice(i + 3))];
 }
 import { signup, login, logout, userFromSession, contextFor, shopsOf, publicShop, createSession, grantStaffAccess, can, must, requestPasswordReset, resetTokenValid, resetPassword, type User, type Ctx } from './domain/accounts.ts';
-import { mailerFromEnv, type Mailer } from './lib/mail.ts';
+import { deliverSupportNotices, mailerFromEnv, type Mailer } from './lib/mail.ts';
 import { ICON_SVG } from './web/html.ts';
 import { availability, availabilityRange, quote, createBooking, changeStatus, agendaDay, findByToken, cancelByCustomer, confirmByCustomer, rescheduleOptions, rescheduleByCustomer, staffMoveOptions, rescheduleByStaff, manageToken, linkSecret, remindersFor, markReminded, reminderText, waNumber } from './domain/booking.ts';
 import { listServices, saveService, saveServicesBulk, setServiceActive, listPros, savePro, setProActive, saveHours, getHours, addTimeOff, removeTimeOff, upcomingTimeOff, savePage, setPublished } from './domain/catalog.ts';
@@ -107,8 +107,9 @@ export function createApp(db: Db, opts: AppOptions = {}) {
 
   /* ---------- site da plataforma ---------- */
   app.get('/', async (c) => {
-    const p = await db.system((q) => q.one(`select trial_days from plans where id = 'profissional'`));
-    return c.html(site.home({ trialDays: p?.trial_days ?? 14, user: !!c.get('user'), plans: await activePlans(db) }));
+    const plans = await activePlans(db);
+    const defaultPlan = plans.find(plan => plan.id === 'profissional') ?? plans[0];
+    return c.html(site.home({ billingOpen: !!prov, trialDays: defaultPlan?.trial_days ?? 0, user: !!c.get('user'), plans }));
   });
   app.get('/entrar', (c) => c.get('user') ? c.redirect('/app') : c.html(site.loginPage({ ok: c.req.query('senha') === '1' ? 'Senha alterada. Entre com a senha nova.' : undefined })));
 
@@ -156,7 +157,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     try {
       rateLimit(`reset-use:${ip(c)}`, 20, 15 * 60_000);
       const u = await resetPassword(db, token, f.password, f.confirm);
-      void mailer.send({ to: u.email, subject: `Sua senha do ${PLATFORM.name} foi alterada`, text: `Olá, ${u.name.split(' ')[0]}.\n\nA senha da sua conta acabou de ser alterada e todas as sessões abertas foram encerradas.\n\nSe não foi você, responda este e-mail ou fale com ${PLATFORM.supportEmail} agora.\n\n${PLATFORM.name}` }).catch((e) => console.error('e-mail falhou', e));
+      void mailer.send({ to: u.email, subject: `Sua senha do ${PLATFORM.name} foi alterada`, text: `Olá, ${u.name.split(' ')[0]}.\n\nA senha da sua conta acabou de ser alterada e todas as sessões abertas foram encerradas.\n\nSe não foi você, responda este e-mail ou use o formulário de contato do Cadeira.\n\n${PLATFORM.name}` }).catch((e) => console.error('e-mail falhou', e));
       deleteCookie(c, 'sid', { path: '/' });
       return c.redirect('/entrar?senha=1', 303);
     } catch (e) {
@@ -169,7 +170,10 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     try { setSession(c, await login(db, f.email, f.password, ip(c))); return go(c, '/app'); }
     catch (e) { if (e instanceof AppError) return c.html(site.loginPage({ email: f.email, error: e.message }), e.status as any); throw e; }
   });
-  app.get('/criar-conta', (c) => c.html(site.signupPage({ host: host(c) })));
+  app.get('/criar-conta', async (c) => {
+    const available = await db.system(q => q.one('select 1 from plans where active limit 1'));
+    return c.html(site.signupPage({ host: host(c), unavailable: !available }), available ? 200 : 503);
+  });
   app.post('/criar-conta', async (c) => {
     const f = await form(c);
     if (!f.slug && f.shopName) f.slug = slugify(f.shopName);
@@ -179,7 +183,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
       setSession(c, await createSession(db, user.id));
       return go(c, `/app/s/${shop.slug}/comecar`, { ok: 'welcome' });
     } catch (e) {
-      if (e instanceof AppError) return c.html(site.signupPage({ v: { ...f, password: '' }, errors: (e.extra as any) ?? {}, error: e.message, host: host(c) }), e.status as any);
+      if (e instanceof AppError) return c.html(site.signupPage({ v: { ...f, password: '' }, errors: (e.extra as any) ?? {}, error: e.message, host: host(c), unavailable: e.code === 'signup_paused' }), e.status as any);
       throw e;
     }
   });
@@ -391,24 +395,44 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     const ent = entitlement(await loadSub(db, shop.id), shop.is_demo);
     return { shop, services, pros, hours, ent } as shopView.ShopData & { ent: Entitlement };
   }
-  async function flowData(d: shopView.ShopData, sel: shopView.Sel) {
+  function calendarWindow(shop: shopView.ShopData['shop'], focus?: string) {
+    const today = toLocal(clock.now(), shop.timezone).date;
+    const limit = shop.policy.max_days_ahead;
+    const day = focus && isDate(focus) ? (Date.parse(focus) - Date.parse(today)) / 86_400_000 : 0;
+    const offset = day >= 0 && day <= limit ? Math.floor(day / 14) * 14 : 0;
+    return {
+      from: addDays(today, offset), days: Math.min(14, limit - offset + 1),
+      previous: offset > 0 ? addDays(today, offset - 14) : undefined,
+      next: offset + 14 <= limit ? addDays(today, offset + 14) : undefined,
+    };
+  }
+  async function flowData(d: shopView.ShopData, sel: shopView.Sel & { pro?: boolean }) {
     const out: any = {};
-    sel.s = sel.s.filter((id) => d.services.some((x) => x.id === id)).slice(0, 5);
-    if (!sel.s.length) return out;
+    const selected = [...new Set(sel.s)];
+    sel.s = selected.filter(id => d.services.some(x => x.id === id));
+    if (!sel.s.length || sel.s.length > 5 || sel.s.length !== selected.length) {
+      out.error = sel.s.length !== selected.length ? 'Um dos serviços saiu do cardápio. Confira sua seleção.'
+        : sel.s.length > 5 ? 'Escolha até 5 serviços por reserva.' : sel.pro ? 'Escolha ao menos um serviço para continuar.' : undefined;
+      sel.pro = false; sel.p = undefined; sel.t = undefined;
+      return out;
+    }
+    if (!sel.p && !sel.pro) return out;
     out.quote = await db.tenant(d.shop.id, (q) => quote(q, sel.s));
-    if (sel.p && sel.p !== 'any' && !d.pros.some((p) => p.id === sel.p)) sel.p = undefined;
+    if (sel.p && sel.p !== 'any' && !d.pros.some((p) => p.id === sel.p)) {
+      sel.p = undefined; sel.t = undefined; sel.pro = true;
+      out.error = 'Esse profissional não está disponível. Escolha outro.';
+    }
     if (sel.p && (!sel.t)) {
-      const t0 = toLocal(clock.now(), d.shop.timezone).date;
-      const n = Math.min(14, d.shop.policy.max_days_ahead + 1);
-      // uma única leitura do período inteiro (antes eram ~5 consultas por dia)
-      const r = await db.tenant(d.shop.id, (q) => availabilityRange(q, d.shop, { from: t0, days: n, serviceIds: sel.s, professionalId: sel.p! }));
-      out.days = r.days.map((x) => ({ ...x, n: x.slots.length }));
-      if (!sel.d || !out.days.some((x: any) => x.date === sel.d)) sel.d = out.days.find((x: any) => x.n)?.date ?? t0;
-      out.slots = out.days.find((x: any) => x.date === sel.d)?.slots ?? [];
+      const window = calendarWindow(d.shop, sel.d);
+      const r = await db.tenant(d.shop.id, (q) => availabilityRange(q, d.shop, { from: window.from, days: window.days, serviceIds: sel.s, professionalId: sel.p! }));
+      out.window = window;
+      out.days = r.days.map(x => ({ date: x.date, open: x.open, n: x.slots.length }));
+      const day = r.days.find(x => x.date === sel.d && x.slots.length) ?? r.days.find(x => x.slots.length) ?? r.days[0];
+      sel.d = day.date; out.slots = day.slots;
     }
     return out;
   }
-  const readSel = (c: C): shopView.Sel & { pro?: boolean } => ({ s: (c.req.queries('s') ?? []).slice(0, 5), p: c.req.query('p') || undefined, d: c.req.query('d') || undefined, t: c.req.query('t') || undefined, pro: c.req.query('pro') === '1' });
+  const readSel = (c: C): shopView.Sel & { pro?: boolean } => ({ s: c.req.queries('s') ?? [], p: c.req.query('p') || undefined, d: c.req.query('d') || undefined, t: c.req.query('t') || undefined, pro: c.req.query('pro') === '1' });
 
   app.get('/b/:slug', async (c) => {
     rateLimit(`view:${ip(c)}`, 240, 60_000); // página pública calcula agenda: limita abuso
@@ -416,17 +440,15 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     if (!d) return c.html(shopView.notPublished(c.req.param('slug')), 404);
     if (!(d as any).ent.ok) return c.html(shopView.unavailable(d.shop.name), 503);
     const sel = readSel(c);
+    if (sel.t && Number.isNaN(Date.parse(sel.t))) sel.t = undefined;
     const extra = await flowData(d, sel);
     if (sel.t) {
       // horário escolhido: confere se ainda está livre antes de pedir os dados
       const date = toLocal(new Date(sel.t), d.shop.timezone).date;
-      if (Number.isNaN(Date.parse(sel.t))) sel.t = undefined;
-      else {
-        const av = await db.tenant(d.shop.id, (q) => availability(q, d.shop, { date, serviceIds: sel.s, professionalId: sel.p || 'any' }));
-        if (!av.slots.some((x) => x.startsAt === new Date(sel.t!).toISOString())) {
-          sel.t = undefined; sel.d = date;
-          Object.assign(extra, await flowData(d, sel), { error: 'Esse horário acabou de ser ocupado. Escolha outro.' });
-        }
+      const av = await db.tenant(d.shop.id, (q) => availability(q, d.shop, { date, serviceIds: sel.s, professionalId: sel.p || 'any' }));
+      if (!av.slots.some((x) => x.startsAt === new Date(sel.t!).toISOString())) {
+        sel.t = undefined; sel.d = date;
+        Object.assign(extra, await flowData(d, sel), { error: 'Esse horário acabou de ser ocupado. Escolha outro.' });
       }
     }
     return c.html(shopView.bookingFlow(d, sel, { ...extra, url: abs(c, `/b/${d.shop.slug}`) }));
@@ -475,13 +497,14 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   async function moveData(shop: any, b: any, d?: string) {
     const ent = entitlement(await loadSub(db, shop.id), shop.is_demo);
     if (!ent.ok) return { blocked: true, days: [], slots: [], d: '' };
-    const t0 = toLocal(clock.now(), shop.timezone).date;
-    const r = await rescheduleOptions(db, shop, b, t0, Math.min(14, shop.policy.max_days_ahead + 1));
-    const days = r.days.map((x) => ({ date: x.date, open: x.open, n: x.slots.length }));
-    // abre no dia do horário atual (quem remarca costuma mudar a hora, não o dia)
     const own = toLocal(new Date(b.starts_at), shop.timezone).date;
-    const sel = d && days.some((x) => x.date === d) ? d : days.some((x) => x.date === own && x.n) ? own : days.find((x) => x.n)?.date ?? t0;
-    return { blocked: false, days, d: sel, slots: r.days.find((x) => x.date === sel)?.slots ?? [] };
+    const focus = d || own, window = calendarWindow(shop, focus);
+    const r = await rescheduleOptions(db, shop, b, window.from, window.days);
+    const current = new Date(b.starts_at).toISOString();
+    for (const x of r.days) x.slots = x.slots.filter((s) => s.startsAt !== current);
+    const days = r.days.map(x => ({ date: x.date, open: x.open, n: x.slots.length }));
+    const day = r.days.find(x => x.date === focus) ?? r.days.find(x => x.slots.length) ?? r.days[0];
+    return { blocked: false, days, d: day.date, slots: day.slots, window };
   }
   app.post('/b/:slug/reserva/:token/confirmar', async (c) => {
     const shop = await publicShop(db, c.req.param('slug'));
@@ -503,14 +526,15 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     rateLimit(`manage:${ip(c)}`, 30, 10 * 60_000);
     try {
       if (!entitlement(await loadSub(db, shop.id), shop.is_demo).ok) throw new AppError(503, 'unavailable', 'A remarcação online está indisponível agora. Fale com a barbearia.');
-      await rescheduleByCustomer(db, shop, token, f.t);
+      const result = await rescheduleByCustomer(db, shop, token, f.t);
+      if (result.changed) void notifyShop(c, shop, 'remarcado', result.id);
+      else return c.redirect(`/b/${shop.slug}/reserva/${token}`, 303);
     } catch (e) {
       if (!(e instanceof AppError)) throw e;
       const b = await findByToken(db, shop, token); if (!b) throw e;
       const day = f.t && !Number.isNaN(Date.parse(f.t)) ? toLocal(new Date(f.t), shop.timezone).date : undefined;
       return c.html(shopView.managePage(await shopDataAny(shop), b, token, { error: e.message, move: b.canChange ? await moveData(shop, b, day) : undefined }), e.status as any);
     }
-    { const b = await findByToken(db, shop, token); if (b) void notifyShop(c, shop, 'remarcado', b.id); }
     return c.redirect(`/b/${shop.slug}/reserva/${token}?ok=remarcado`, 303);
   });
   app.post('/b/:slug/reserva/:token/cancelar', async (c) => {
@@ -518,13 +542,15 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     if (!shop) throw notFound();
     const token = c.req.param('token');
     rateLimit(`cancel:${ip(c)}`, 20, 10 * 60_000);
-    try { await cancelByCustomer(db, shop, token); }
+    try {
+      const id = await cancelByCustomer(db, shop, token);
+      if (id) void notifyShop(c, shop, 'cancelado', id);
+    }
     catch (e) {
       if (!(e instanceof AppError)) throw e;
       const b = await findByToken(db, shop, token); if (!b) throw e;
       return c.html(shopView.managePage(await shopDataAny(shop), b, token, { error: e.message }), e.status as any);
     }
-    { const b = await findByToken(db, shop, token); if (b) void notifyShop(c, shop, 'cancelado', b.id); }
     return c.redirect(`/b/${shop.slug}/reserva/${token}?cancelado=1`, 303);
   });
   async function shopDataAny(shop: any): Promise<shopView.ShopData> {
@@ -653,8 +679,8 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   app.get('/admin/planos', async (c) => c.html(adminView.plansPage(c.get('user')!, await admin.allPlans(db), await admin.getSettings(db), takeFlash(c))));
   app.post('/admin/planos/:id', async (c) => { await admin.savePlan(db, c.get('user')!, c.req.param('id'), await form(c)); return adminGo(c, '/admin/planos', { ok: 'saved' }); });
   app.post('/admin/configuracoes', async (c) => { await admin.saveSettings(db, c.get('user')!, await form(c)); return adminGo(c, '/admin/planos', { ok: 'saved' }); });
-  app.get('/admin/cobrancas', async (c) => c.html(adminView.eventsPage(c.get('user')!, await admin.billingEvents(db), takeFlash(c))));
-  app.post('/admin/conciliar', async (c) => { const n = prov ? await reconcile(db, prov) : 0; await db.system((q) => q.exec(`insert into audit_log (user_id, action, meta) values ($1,'admin.reconcile',$2)`, [c.get('user')!.id, JSON.stringify({ updated: n })])); return adminGo(c, '/admin/cobrancas', { ok: 'saved' }); });
+  app.get('/admin/cobrancas', async (c) => c.html(adminView.eventsPage(c.get('user')!, await admin.billingEvents(db), takeFlash(c), Boolean(prov))));
+  app.post('/admin/conciliar', async (c) => { if (!prov) return c.html(adminView.eventsPage(c.get('user')!, await admin.billingEvents(db), { error: 'Conciliação indisponível. Configure o provedor de cobrança para consultar os pagamentos.' }, false), 503); const n = await reconcile(db, prov); await db.system((q) => q.exec(`insert into audit_log (user_id, action, meta) values ($1,'admin.reconcile',$2)`, [c.get('user')!.id, JSON.stringify({ updated: n })])); return adminGo(c, '/admin/cobrancas', { ok: 'saved' }); });
   app.get('/admin/suporte', async (c) => c.html(adminView.supportPage(c.get('user')!, await db.system((q) => q.all('select * from contact_messages order by handled_at nulls first, created_at desc limit 200')), takeFlash(c))));
   app.post('/admin/suporte/:id/respondida', async (c) => {
     const id = Number(c.req.param('id'));
@@ -692,9 +718,9 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     const err = v.name.length < 2 ? 'Informe seu nome.' : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email) || v.email.length > 120 ? 'Informe um e-mail válido.' : v.message.length < 5 ? 'Escreva a mensagem.' : v.message.length > 2000 ? 'Mensagem muito longa (até 2000 caracteres).' : '';
     if (err) return c.html(site.contactPage({ error: err, v: { ...v }, user: !!c.get('user') }), 422);
     try { rateLimit(`contact:${ip(c)}`, 5, 60 * 60_000); } catch (e) { if (e instanceof AppError) return c.html(site.contactPage({ error: e.message, v, user: !!c.get('user') }), 429); throw e; }
-    await db.system((q) => q.exec('insert into contact_messages (name, email, phone, shop_name, message) values ($1,$2,$3,$4,$5)', [v.name.slice(0, 80), v.email, v.phone, v.shop, v.message]));
-    // aviso ao suporte (só quando há um e-mail de suporte de verdade configurado); a mensagem também fica em /admin/suporte
-    if (process.env.SUPPORT_EMAIL) void mailer.send({ to: process.env.SUPPORT_EMAIL, subject: `Contato pelo site: ${v.name.slice(0, 60)}`, text: `${v.name} <${v.email}>${v.phone ? ' · WhatsApp ' + v.phone : ''}${v.shop ? ' · ' + v.shop : ''}\n\n${v.message}\n\nResponda pelo e-mail acima. Todas as mensagens: /admin/suporte` }).catch((e) => console.error('aviso de contato falhou', e));
+    await db.system(q => q.exec('insert into contact_messages (name,email,phone,shop_name,message,notify_to) values ($1,$2,$3,$4,$5,$6)',
+      [v.name.slice(0, 80), v.email, v.phone, v.shop, v.message, process.env.SUPPORT_EMAIL || null]));
+    void deliverSupportNotices(db, mailer).catch(() => console.error('Fila de avisos de suporte indisponível.'));
     return c.redirect('/contato?enviado=1', 303);
   });
   app.get('/termos', (c) => c.html(site.termsPage(!!c.get('user'))));
@@ -703,7 +729,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   app.get('/saude', async (c) => { await db.system((q) => q.one('select 1 ok')); return c.json({ ok: true }); });
 
   /* ---------- planos no site ---------- */
-  app.get('/planos', async (c) => c.html(site.plansPage(await activePlans(db), !!c.get('user'))));
+  app.get('/planos', async (c) => c.html(site.plansPage(await activePlans(db), !!c.get('user'), !!prov)));
 
   return app;
 }

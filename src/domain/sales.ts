@@ -27,26 +27,51 @@ export async function checkoutData(db: Db, ctx: Ctx, bookingId?: string) {
     if (bookingId) {
       if (!UUID.test(bookingId)) throw notFound();
       booking = await q.one(`select b.id, b.status, b.starts_at, b.professional_id, b.customer_id, b.price_cents, c.name customer, c.phone, p.name pro_name,
-          exists (select 1 from sales s where s.booking_id = b.id and s.status = 'paid') paid
+          (select s.paid_at from sales s where s.booking_id = b.id and s.status = 'paid') paid_at
         from bookings b join customers c on c.id = b.customer_id join professionals p on p.id = b.professional_id where b.id = $1`, [bookingId]);
       if (!booking || (!can(ctx, 'agenda.all') && booking.professional_id !== ctx.professionalId)) throw notFound('Atendimento não encontrado.');
       booking.items = await q.all('select service_id, name, price_cents, duration_min from booking_items where booking_id = $1', [bookingId]);
     }
     const services = await q.all('select id, name, price_cents from services where active order by sort, name');
     const pros = await q.all(`select id, name from professionals where active ${can(ctx, 'agenda.all') ? '' : 'and id = $1'} order by sort, name`, can(ctx, 'agenda.all') ? [] : [ctx.professionalId]);
-    return { booking, services, pros };
+    const day = toLocal(clock.now(), ctx.shop.timezone).date;
+    const closed = !!await q.one('select 1 from cash_closings where day = $1', [day]);
+    return { booking, services, pros, closed };
   });
+}
+
+async function lockCashDay(q: Q, shop: string, day: string) {
+  await q.one('select pg_advisory_xact_lock(hashtext($1), hashtext($2))', [shop, day]);
 }
 
 export async function createSale(db: Db, ctx: Ctx, f: Record<string, any>) {
   must(ctx, 'sales.create');
   const bookingId = String(f.bookingId || '');
-  const extraServices = arr(f.svc).filter((x) => UUID.test(x));
-  const products = arr(f.productName).map((name, i) => ({ name: name.trim().slice(0, 80), price: money(arr(f.productPrice)[i]) })).filter((p) => p.name && p.price > 0);
+  const requestKey = bookingId || !f.requestKey ? null : String(f.requestKey);
+  if (requestKey && !UUID.test(requestKey)) throw invalid('Reabra a comanda para continuar.');
+  const extraServices = [...new Set(arr(f.svc))];
+  if (extraServices.some(id => !UUID.test(id))) throw invalid('Confira os serviços selecionados.');
+  const names = arr(f.productName), prices = arr(f.productPrice);
+  const products: { name: string; price: number }[] = [];
+  for (let i = 0; i < Math.max(names.length, prices.length); i++) {
+    const name = (names[i] || '').trim(), raw = (prices[i] || '').trim();
+    if (!name && !raw) continue;
+    const price = money(raw);
+    if (!name || name.length > 80 || price === 0) throw invalid('Informe o nome e o preço de cada produto adicionado.');
+    products.push({ name, price });
+  }
   const discount = money(f.discount);
   const pays = [[f.method1, f.amount1], [f.method2, f.amount2]].map(([m, a]) => ({ method: String(m || ''), raw: String(a ?? '').trim() }));
   const now = clock.now();
   return db.tenant(ctx.shop.id, async (q) => {
+    const day = toLocal(now, ctx.shop.timezone).date;
+    await lockCashDay(q, ctx.shop.id, day);
+    const previousSale = () => q.one('select id from sales where created_by = $1 and request_key = $2', [ctx.user.id, requestKey]);
+    if (requestKey) {
+      const previous = await previousSale();
+      if (previous) return previous.id as string;
+    }
+    if (await q.one('select 1 from cash_closings where day = $1', [day])) throw invalid('O caixa deste dia já foi fechado.');
     let booking: any = null, proId: string | null = null, customerId: string | null = null;
     const items: { kind: 'service' | 'product'; service_id: string | null; name: string; unit: number; pro: string | null }[] = [];
     if (bookingId) {
@@ -68,28 +93,41 @@ export async function createSale(db: Db, ctx: Ctx, f: Record<string, any>) {
         customerId = (await q.one('insert into customers (shop_id, name, phone) values ($1,$2,$3) on conflict (shop_id, phone) do update set phone = excluded.phone returning id', [ctx.shop.id, name.length >= 2 ? name : 'Cliente', phone]))!.id;
       }
     }
-    if (extraServices.length) for (const s of await q.all('select id, name, price_cents from services where id = any($1::uuid[]) and active', [extraServices])) items.push({ kind: 'service', service_id: s.id, name: s.name, unit: s.price_cents, pro: proId });
+    if (extraServices.length) {
+      const services = await q.all('select id, name, price_cents from services where id = any($1::uuid[]) and active order by sort, name, id', [extraServices]);
+      if (services.length !== extraServices.length) throw invalid('Um serviço selecionado não está mais disponível. Revise a comanda.');
+      for (const s of services) items.push({ kind: 'service', service_id: s.id, name: s.name, unit: s.price_cents, pro: proId });
+    }
     for (const p of products) items.push({ kind: 'product', service_id: null, name: p.name, unit: p.price, pro: proId });
     if (!items.length) throw invalid('Adicione pelo menos um item à comanda.');
     const subtotal = items.reduce((s, i) => s + i.unit, 0);
     if (discount > subtotal) throw invalid('O desconto não pode ser maior que o total.');
     const total = subtotal - discount;
     // pagamento: o 1º método leva o restante quando o valor fica em branco (pagamento dividido)
-    const p2 = pays[1].method && pays[1].raw ? money(pays[1].raw) : 0;
+    if (Boolean(pays[1].method) !== Boolean(pays[1].raw)) throw invalid('Informe a segunda forma de pagamento e o valor da parte.');
+    const p2 = money(pays[1].raw);
+    if (pays[1].method && (p2 <= 0 || p2 >= total || pays[1].method === pays[0].method)) throw invalid('Escolha duas formas diferentes e divida o total entre elas.');
     const p1 = pays[0].raw ? money(pays[0].raw) : total - p2;
     const payments = [{ method: pays[0].method, amount: p1 }, { method: pays[1].method, amount: p2 }].filter((p) => p.amount > 0);
     for (const p of payments) if (!METHODS[p.method]) throw invalid('Escolha a forma de pagamento.');
     if (total > 0 && !payments.length) throw invalid('Informe como o cliente pagou.');
     const paid = payments.reduce((s, p) => s + p.amount, 0);
     if (paid !== total) throw invalid(`A soma dos pagamentos (${(paid / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) precisa ser igual ao total (${(total / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}).`);
+    const cash = payments.find(p => p.method === 'dinheiro');
+    if (cash && String(f.cashReceived ?? '').trim() && money(f.cashReceived) < cash.amount) throw invalid('O dinheiro recebido é menor que a parte em dinheiro da comanda.');
     const pct = new Map((await q.all('select id, commission_pct::float pct from professionals where id = any($1::uuid[])', [[...new Set(items.map((i) => i.pro).filter(Boolean))]])).map((r) => [r.id, r.pct as number]));
-    const sale = (await q.one(`insert into sales (shop_id, booking_id, customer_id, status, subtotal_cents, discount_cents, total_cents, paid_at, created_by) values ($1,$2,$3,'paid',$4,$5,$6,$7,$8) returning id`,
-      [ctx.shop.id, booking?.id ?? null, customerId, subtotal, discount, total, now, ctx.user.id]))!;
-    let left = discount;
-    for (const [i, it] of items.entries()) {
-      const share = i === items.length - 1 ? left : Math.round((discount * it.unit) / (subtotal || 1));
-      left -= share;
-      const net = Math.max(0, it.unit - share), p = it.kind === 'service' && it.pro ? pct.get(it.pro) ?? 0 : 0;
+    const sale = await q.one(`insert into sales (shop_id, booking_id, customer_id, status, subtotal_cents, discount_cents, total_cents, paid_at, created_by, request_key)
+      values ($1,$2,$3,'paid',$4,$5,$6,$7,$8,$9) on conflict (shop_id,created_by,request_key) do nothing returning id`,
+      [ctx.shop.id, booking?.id ?? null, customerId, subtotal, discount, total, now, ctx.user.id, requestKey]);
+    if (!sale) return (await previousSale())!.id as string;
+    // Arredonda o desconto acumulado para distribuir os centavos sem criar um item acima do preço original.
+    let grossSoFar = 0, discountSoFar = 0;
+    for (const it of items) {
+      grossSoFar += it.unit;
+      const cumulativeDiscount = Math.round(discount * grossSoFar / (subtotal || 1));
+      const net = it.unit - (cumulativeDiscount - discountSoFar);
+      discountSoFar = cumulativeDiscount;
+      const p = it.kind === 'service' && it.pro ? pct.get(it.pro) ?? 0 : 0;
       await q.exec(`insert into sale_items (shop_id, sale_id, kind, service_id, name, unit_cents, total_cents, professional_id, commission_pct, commission_cents) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [ctx.shop.id, sale.id, it.kind, it.service_id, it.name, it.unit, net, it.pro, p, Math.round((net * p) / 100)]);
     }
@@ -113,6 +151,7 @@ export async function voidSale(db: Db, ctx: Ctx, id: string, reason: string) {
     if (!s) throw notFound('Venda não encontrada.');
     if (s.status !== 'paid') throw invalid('Esta venda já foi estornada.');
     const day = toLocal(new Date(s.paid_at), ctx.shop.timezone).date;
+    await lockCashDay(q, ctx.shop.id, day);
     if (await q.one('select 1 from cash_closings where day = $1', [day])) throw invalid('O caixa deste dia já foi fechado. Estornos depois do fechamento não são permitidos.');
     await q.exec(`update sales set status = 'void', void_reason = $2 where id = $1`, [id, (reason || 'Estornada').slice(0, 140)]);
     await q.exec(`insert into audit_log (shop_id, user_id, action, entity, entity_id, meta) values ($1,$2,'sale.voided','sale',$3,$4)`, [ctx.shop.id, ctx.user.id, id, JSON.stringify({ reason: (reason || '').slice(0, 140) })]);
@@ -137,7 +176,9 @@ export async function cashDay(db: Db, ctx: Ctx, day: string) {
       where b.starts_at >= $1 and b.starts_at < $2 and b.status in ('completed','confirmed') and b.starts_at <= $3
         and not exists (select 1 from sales s where s.booking_id = b.id and s.status = 'paid') order by b.starts_at`, [a, b, new Date(clock.now().getTime() + 30 * 60_000)]);
     const closing = await q.one('select * from cash_closings where day = $1', [day]);
-    return { sales, byMethod, total, count: sales.filter((x) => x.status === 'paid').length, pending, closing };
+    const today = toLocal(clock.now(), ctx.shop.timezone).date;
+    const todayClosed = day === today ? !!closing : !!await q.one('select 1 from cash_closings where day = $1', [today]);
+    return { sales, byMethod, total, count: sales.filter((x) => x.status === 'paid').length, pending, closing, todayClosed };
   });
 }
 
@@ -146,11 +187,16 @@ export async function closeCash(db: Db, ctx: Ctx, day: string, counted: string, 
   if (!isDate(day)) throw invalid('Data inválida.');
   if (day > toLocal(clock.now(), ctx.shop.timezone).date) throw invalid('Não dá para fechar o caixa de um dia que ainda não chegou.');
   const cnt = money(counted);
-  const d = await cashDay(db, ctx, day);
+  const [start, end] = dayRange(ctx, day);
   try {
     await db.tenant(ctx.shop.id, async (q) => {
-      await q.exec('insert into cash_closings (shop_id, day, total_cents, expected_cash_cents, counted_cash_cents, note, closed_by) values ($1,$2,$3,$4,$5,$6,$7)', [ctx.shop.id, day, d.total, d.byMethod.dinheiro ?? 0, cnt, String(note || '').slice(0, 200), ctx.user.id]);
-      await q.exec(`insert into audit_log (shop_id, user_id, action, entity, meta) values ($1,$2,'cash.closed','cash',$3)`, [ctx.shop.id, ctx.user.id, JSON.stringify({ day, expected: d.byMethod.dinheiro ?? 0, counted: cnt })]);
+      await lockCashDay(q, ctx.shop.id, day);
+      const totals = await q.one(`select coalesce(sum(p.amount_cents),0) total,
+        coalesce(sum(p.amount_cents) filter (where p.method = 'dinheiro'),0) cash
+        from sales s join sale_payments p on p.sale_id = s.id
+        where s.status = 'paid' and s.paid_at >= $1 and s.paid_at < $2`, [start, end]);
+      await q.exec('insert into cash_closings (shop_id, day, total_cents, expected_cash_cents, counted_cash_cents, note, closed_by) values ($1,$2,$3,$4,$5,$6,$7)', [ctx.shop.id, day, totals!.total, totals!.cash, cnt, String(note || '').slice(0, 200), ctx.user.id]);
+      await q.exec(`insert into audit_log (shop_id, user_id, action, entity, meta) values ($1,$2,'cash.closed','cash',$3)`, [ctx.shop.id, ctx.user.id, JSON.stringify({ day, expected: totals!.cash, counted: cnt })]);
     });
   } catch (e: any) { if (e.code === '23505') throw invalid('O caixa deste dia já foi fechado.'); throw e; }
 }

@@ -34,4 +34,4 @@ const app = createApp(db, { staticRoot: pub, billing: null });
 const sid = await createSession(db, owner.id);
 // só no painel: o site e a página pública aparecem como para um visitante
 const fetchLogged = (req: Request) => { const h = new Headers(req.headers); if (/^\/(app|admin)(\/|$)/.test(new URL(req.url).pathname) &&!h.get('cookie')?.includes('sid=')) h.set('cookie', `sid=${sid}`); return app.fetch(new Request(req, { headers: h })); };
-serve({ fetch: fetchLogged, port: Number(process.env.PORT || 3100) }, (i) => console.log(`telas em http://localhost:${i.port}`));
+serve({ fetch: fetchLogged, hostname: '127.0.0.1', port: Number(process.env.PORT || 3100) }, (i) => console.log(`telas em http://localhost:${i.port}`));

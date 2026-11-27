@@ -35,21 +35,21 @@ export async function listCustomers(db: Db, ctx: Ctx, o: { q?: string; filtro?: 
   return { list: f ? all.filter((r) => r.tag === f) : all, counts, filtro: f, q };
 }
 
-export async function customerDetail(db: Db, ctx: Ctx, id: string) {
+export async function customerDetail(db: Db, ctx: Ctx, id: string, fullHistory = false) {
   must(ctx, 'customers.view');
   if (!UUID.test(id)) throw notFound();
   return db.tenant(ctx.shop.id, async (q) => {
     const c = await q.one('select id, name, phone, notes, created_at from customers where id = $1', [id]);
     if (!c) throw notFound('Cliente não encontrado.');
     c.bookings = await q.all(`select b.id, b.starts_at, b.status, b.price_cents, p.name pro_name, (select string_agg(i.name, ' + ' order by i.id) from booking_items i where i.booking_id = b.id) services
-      from bookings b join professionals p on p.id = b.professional_id where b.customer_id = $1 order by b.starts_at desc limit 60`, [id]);
+      from bookings b join professionals p on p.id = b.professional_id where b.customer_id = $1 order by b.starts_at desc, b.id ${fullHistory ? '' : 'limit 60'}`, [id]);
     const s = await q.one(`select coalesce(sum(total_cents),0)::int spent, count(*)::int n from sales where customer_id = $1 and status = 'paid'`, [id]);
     c.spent = s!.spent; c.salesN = s!.n;
-    c.visits = c.bookings.filter((b: any) => b.status === 'completed').length;
-    c.noshows = c.bookings.filter((b: any) => b.status === 'no_show').length;
-    // frequência média entre visitas atendidas (para saber quando chamar de volta)
-    const done = c.bookings.filter((b: any) => b.status === 'completed').map((b: any) => new Date(b.starts_at).getTime()).sort();
-    c.every = done.length > 1 ? Math.round((done.at(-1) - done[0]) / (done.length - 1) / 86_400_000) : null;
+    const stats = await q.one(`select count(*)::int total, count(*) filter (where status = 'completed')::int visits,
+      count(*) filter (where status = 'no_show')::int noshows, min(starts_at) filter (where status = 'completed') first_visit,
+      max(starts_at) filter (where status = 'completed') last_visit from bookings where customer_id = $1`, [id]);
+    c.visits = stats!.visits; c.noshows = stats!.noshows; c.historySize = stats!.total;
+    c.every = c.visits > 1 ? Math.round((new Date(stats!.last_visit).getTime() - new Date(stats!.first_visit).getTime()) / (c.visits - 1) / 86_400_000) : null;
     return c;
   });
 }
@@ -70,7 +70,7 @@ export async function saveCustomer(db: Db, ctx: Ctx, id: string, f: Record<strin
 /** LGPD: tudo que a barbearia guarda sobre a pessoa, em formato legível por máquina. */
 export async function exportCustomer(db: Db, ctx: Ctx, id: string) {
   must(ctx, 'customers.privacy');
-  const c = await customerDetail(db, ctx, id);
+  const c = await customerDetail(db, ctx, id, true);
   await db.tenant(ctx.shop.id, (q) => q.exec(`insert into audit_log (shop_id, user_id, action, entity, entity_id) values ($1,$2,'customer.exported','customer',$3)`, [ctx.shop.id, ctx.user.id, id]));
   return { estabelecimento: ctx.shop.name, gerado_em: clock.now().toISOString(), cliente: { nome: c.name, whatsapp: c.phone, anotacoes: c.notes, cadastrado_em: c.created_at },
     atendimentos: c.bookings.map((b: any) => ({ data: b.starts_at, servicos: b.services, profissional: b.pro_name, situacao: b.status, valor_centavos: b.price_cents })) };

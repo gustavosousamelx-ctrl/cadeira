@@ -92,10 +92,10 @@ export function plansPage(u: User, plans: any[], settings: any, f: any) {
       <div class="row-btns"><button class="btn sm">Salvar regras</button></div></form>`, f);
 }
 
-export function eventsPage(u: User, events: any[], f: any) {
+export function eventsPage(u: User, events: any[], f: any, canReconcile: boolean) {
   return layout(u, 'cobrancas', 'Avisos de pagamento', h`
     <p class="lead">Todo aviso recebido do provedor fica registrado. Avisos repetidos são ignorados; avisos fora de ordem não desfazem um pagamento confirmado.</p>
-    <form method="post" action="/admin/conciliar" class="row-btns" style="margin-bottom:14px"><button class="btn sm">Conciliar agora com o provedor</button></form>
+    ${canReconcile ? h`<form method="post" action="/admin/conciliar" class="row-btns" style="margin-bottom:14px"><button class="btn sm">Conciliar agora com o provedor</button></form>` : h`<p>Conciliação indisponível. Configure o provedor de cobrança para consultar os pagamentos.</p>`}
     ${events.length ? h`<div class="table-wrap" tabindex="0" role="region" aria-label="Tabela"><table class="tbl"><thead><tr><th>Recebido</th><th>Provedor</th><th>Evento</th><th>Cobrança</th><th>Resultado</th></tr></thead><tbody>
       ${events.map((e) => h`<tr><td>${dt(e.received_at)}</td><td>${e.provider}</td><td>${e.type}<small class="muted"> ${e.event_id}</small></td><td><small>${e.provider_payment_id ?? '—'}</small></td><td><span class="res ${String(e.result).startsWith('applied') ? 'good' : String(e.result).startsWith('out_of_order') || e.result === 'unknown_payment' ? 'warn' : ''}">${e.result ?? 'pendente'}</span></td></tr>`)}
     </tbody></table></div>` : h`<p class="empty">Nenhum aviso recebido ainda.</p>`}`, f);
@@ -105,6 +105,7 @@ export function supportPage(u: User, rows: any[], f: any) {
   const open = rows.filter((r) => !r.handled_at), done = rows.filter((r) => r.handled_at);
   const item = (r: any) => h`<li class="msg ${r.handled_at ? 'done' : ''}"><div class="msg-head"><b>${r.name}</b><span class="muted">${dt(r.created_at)}</span></div>
     <p class="msg-meta"><span class="sel">${r.email}</span>${r.phone ? h` · ${r.phone}` : ''}${r.shop_name ? h` · ${r.shop_name}` : ''}</p><p class="msg-body">${r.message}</p>
+    <small>${r.notified_at ? 'Aviso enviado ao provedor' : !r.notify_to ? 'Suporte pelo painel' : r.notify_attempts >= 8 ? 'Falha no aviso por e-mail' : r.handled_at ? 'Contato encerrado' : 'Aviso pendente'}</small>
     ${r.handled_at ? h`<small class="muted">Respondida em ${dt(r.handled_at)}</small>` : h`<form method="post" action="/admin/suporte/${r.id}/respondida"><button class="btn sm">Marcar como respondida</button></form>`}</li>`;
   return layout(u, 'suporte', 'Mensagens do site', h`
     <p class="lead">Mensagens do formulário de contato. Responda pelo e-mail da pessoa e marque aqui para não perder o controle.</p>

@@ -69,6 +69,9 @@ export async function signup(db: Db, raw: unknown) {
 
 /** Provisiona um estabelecimento novo: dono, profissional, horários, serviços iniciais e teste do plano. */
 export async function provisionShop(q: Q, o: { name: string; slug: string; ownerId: string; ownerName: string; isDemo?: boolean; planId?: string }) {
+  const plan = await q.one(`select id, trial_days from plans where active or $2::boolean
+    order by (id = $1) desc, sort, id limit 1`, [o.planId || 'profissional', !!o.isDemo]);
+  if (!plan) throw new AppError(503, 'signup_paused', 'Os cadastros estão temporariamente pausados.');
   const shop = await q.one<Shop>(`insert into shops (slug, name, is_demo) values ($1,$2,$3) returning ${SHOP_COLS}`, [o.slug, o.name, !!o.isDemo]);
   const sid = shop!.id;
   const pro = await q.one('insert into professionals (shop_id, name, title, sort) values ($1,$2,$3,0) returning id', [sid, o.ownerName, 'Proprietário']);
@@ -78,8 +81,7 @@ export async function provisionShop(q: Q, o: { name: string; slug: string; owner
   await q.exec('insert into working_hours (shop_id, weekday, start_min, end_min) values ($1,6,480,1020)', [sid]);
   const starters: [string, string, number, number][] = [['Corte', 'Máquina ou tesoura, com finalização', 30, 4500], ['Barba', 'Toalha quente e navalha', 30, 3500], ['Corte e barba', 'Os dois no mesmo horário', 60, 7500]];
   for (const [i, s] of starters.entries()) await q.exec('insert into services (shop_id, name, description, duration_min, price_cents, sort) values ($1,$2,$3,$4,$5,$6)', [sid, ...s, i]);
-  const plan = await q.one('select id, trial_days from plans where id = $1 and active', [o.planId || 'profissional']);
-  if (plan) await q.exec(`insert into saas_subscriptions (shop_id, plan_id, status, trial_ends_at) values ($1,$2,'trialing', $3::timestamptz + make_interval(days => $4))`, [sid, plan.id, clock.now().toISOString(), plan.trial_days]);
+  await q.exec(`insert into saas_subscriptions (shop_id, plan_id, status, trial_ends_at) values ($1,$2,'trialing', $3::timestamptz + make_interval(days => $4))`, [sid, plan.id, clock.now().toISOString(), plan.trial_days]);
   await q.exec(`insert into audit_log (shop_id, user_id, action, entity, entity_id) values ($1,$2,'shop.provisioned','shop',$3)`, [sid, o.ownerId, sid]);
   return shop!;
 }

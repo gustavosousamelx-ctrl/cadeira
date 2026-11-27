@@ -60,6 +60,17 @@ describe('confiança no agendamento', () => {
     assert.match((await H.req('/app/s/confia/pagina', { cookie: A.cookie })).text, /name="on" value="1" >/);
   });
 
+  test('reenvio com dois profissionais livres recupera o mesmo link', async () => {
+    await H.req('/app/s/confia/equipe', { cookie: A.cookie, form: {name:'Segundo profissional', commission:'0'} });
+    resetRateLimits();
+    const form = { s: ids.services[0].id, p:'any', t:T('16:00'), name:'Teste Duplo', phone:'11900000000', k:'pedido-ficticio-com-dois' };
+    const first = await H.req('/b/confia/reservar', { form });
+    const retry = await H.req('/b/confia/reservar', { form });
+    assert.equal(first.status, 303);
+    assert.equal(retry.status, 303);
+    assert.equal(first.location, retry.location);
+  });
+
   test('formulário do cliente diz o que é feito com o nome e o WhatsApp', async () => {
     const r = await H.req(`/b/confia?s=${ids.services[0].id}&p=any&t=${encodeURIComponent(T('15:00'))}`);
     assert.match(r.text, /ficam só com a Barbearia confia/);

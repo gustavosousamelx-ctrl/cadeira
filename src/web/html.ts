@@ -48,7 +48,14 @@ const ASSET_V = process.env.ASSET_VERSION || Date.now().toString(36);
 const FONT = 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400;500;600;700&display=swap';
 export function doc(o: { title: string; body: Safe; css: string[]; fonts?: string[]; bodyClass?: string; style?: string; desc?: string; scripts?: string[]; head?: Safe; noindex?: boolean }) {
   return '<!doctype html>' + h`<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>${o.title}</title>${o.desc ? h`<meta name="description" content="${o.desc}">` : ''}
+<title>${o.title}</title>${o.desc ? h`<meta name="description" content="${o.desc}">
+    <meta property="og:locale" content="pt_BR">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="${o.title}">
+    <meta property="og:description" content="${o.desc}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="${o.title}">
+    <meta name="twitter:description" content="${o.desc}">` : ''}
 ${o.noindex ? raw('<meta name="robots" content="noindex,nofollow">') : ''}
 <link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#17130F"><link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
 ${o.head ?? ''}
@@ -57,7 +64,8 @@ ${(o.fonts ?? [FONT]).map((f) => h`<link rel="stylesheet" href="${f}">`)}
 ${o.css.map((c) => h`<link rel="stylesheet" href="/static/${c}?v=${ASSET_V}">`)}
 ${(o.scripts ?? []).map((s) => h`<script src="/static/${s}?v=${ASSET_V}" defer></script>`)}
 <link rel="icon" href="/favicon.ico" type="image/svg+xml">
-</head><body class="${o.bodyClass ?? ''}" ${o.style ? h`style="${o.style}"` : ''}>${o.body}</body></html>`.s;
+</head><body class="${o.bodyClass ?? ''}" ${o.style ? h`style="${o.style}"` : ''}>
+  <a class="skip" href="#conteudo">Pular para o conteúdo</a><div id="conteudo">${o.body}</div></body></html>`.s;
 }
 
 export const MESSAGES: Record<string, string> = {

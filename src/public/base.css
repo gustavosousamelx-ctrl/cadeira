@@ -49,3 +49,10 @@ fieldset{border:0;margin:0;padding:0;min-width:0}
 h1,.display{font-family:var(--f-display);font-weight:800;letter-spacing:-.035em}
 .brand span{font-family:var(--f-display);font-weight:800;letter-spacing:-.045em;text-transform:lowercase;font-size:21px}
 .brand .mk{color:inherit}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+.skip { position: absolute; left: -999px; top: 8px; z-index: 1000; background: #17130F; color: #fff; padding: 8px 14px; border-radius: 8px; }
+.skip:focus, .skip:focus-visible { left: 8px; }

@@ -86,6 +86,8 @@ describe('caixa e financeiro', () => {
     const sale = await E.db.tenant(shop.id, (q: any) => q.one(`select id from sales where status = 'paid' limit 1`));
     const late = await E.req(`/app/s/sigma/caixa/venda/${sale.id}/estornar`, { cookie: A.cookie, form: { reason: 'x' }, headers: { referer: 'http://localhost/app/s/sigma/caixa' } });
     assert.match(flashOf(late), /já foi fechado/);
+    const extra = await E.req('/app/s/sigma/caixa/comanda', { cookie: A.cookie, form: { professionalId: ids.pros[0].id, svc: ids.services[0].id, method1: 'dinheiro' } });
+    assert.match(extra.text, /caixa deste dia já foi fechado/i);
   });
 
   test('financeiro do mês com dados reais e comissões conforme o plano', async () => {

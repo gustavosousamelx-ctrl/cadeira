@@ -146,6 +146,7 @@ export async function createBooking(db: Db, shop: Shop, raw: unknown, actor: { k
         break;
       } catch (e: any) {
         await q.exec('rollback to savepoint try_slot');
+        if (e.code === '23505' && e.constraint === 'bookings_request_key') throw unavailable();
         if (e.code !== '23P01') throw e; // 23P01 = violação da restrição de exclusão (horário sobreposto)
       }
     }
@@ -185,10 +186,18 @@ export async function changeStatus(db: Db, ctx: Ctx, bookingId: string, to: stri
 /** Cancelamento pelo cliente: exige o token secreto do link da reserva (não basta saber o telefone). */
 export async function findByToken(db: Db, shop: Shop, token: string): Promise<any> {
   if (!token || token.length > 64) return null;
+  const secret = await linkSecret(db);
   return db.tenant(shop.id, async (q) => {
-    const b = await q.one(`select b.id, b.status, b.starts_at, b.ends_at, b.price_cents, b.duration_min, b.professional_id, b.client_confirmed_at, p.name pro_name, b.contact_name customer_name
+    let b = await q.one(`select b.id, b.status, b.starts_at, b.ends_at, b.price_cents, b.duration_min, b.professional_id, b.client_confirmed_at, p.name pro_name, b.contact_name customer_name
       from bookings b join professionals p on p.id = b.professional_id join customers c on c.id = b.customer_id where b.manage_token_hash = $1`, [sha256(token)]);
-    if (!b) return null;
+    if (!b) {
+      const ids = await q.all<{ id: string }>("select id from bookings");
+      const hit = ids.find((r) => manageToken(secret, r.id) === token);
+      if (!hit) return null;
+      b = await q.one(`select b.id, b.status, b.starts_at, b.ends_at, b.price_cents, b.duration_min, b.professional_id, b.client_confirmed_at, p.name pro_name, b.contact_name customer_name
+        from bookings b join professionals p on p.id = b.professional_id join customers c on c.id = b.customer_id where b.id = $1`, [hit.id]);
+      if (!b) return null;
+    }
     const items = await q.all('select name, price_cents, duration_min from booking_items where booking_id = $1', [b.id]);
     const ahead = new Date(b.starts_at).getTime() - clock.now().getTime();
     const open = ['pending', 'confirmed'].includes(b.status);
@@ -206,6 +215,7 @@ export async function cancelByCustomer(db: Db, shop: Shop, token: string) {
     await q.exec(`update bookings set status = 'cancelled', cancel_reason = 'Cancelado pelo cliente', updated_at = now() where id = $1 and status in ('pending','confirmed')`, [b.id]);
     await q.exec(`insert into booking_events (shop_id, booking_id, from_status, to_status, actor) values ($1,$2,$3,'cancelled','customer')`, [shop.id, b.id, b.status]);
   });
+  return b.id;
 }
 /** O cliente confirma presença pelo link (normalmente depois do lembrete). */
 export async function confirmByCustomer(db: Db, shop: Shop, token: string) {
@@ -228,6 +238,7 @@ export async function rescheduleByCustomer(db: Db, shop: Shop, token: string, st
   if (!b.canChange) throw invalid(b.status === 'cancelled' ? 'Esta reserva foi cancelada.' : lateMsg(shop, 'A remarcação'));
   if (!startsAtRaw || Number.isNaN(Date.parse(startsAtRaw))) throw invalid('Escolha um horário.');
   const startsAt = new Date(startsAtRaw), tz = shop.timezone;
+  if (new Date(b.starts_at).getTime() === startsAt.getTime()) return { startsAt, changed: false, id: b.id };
   const date = toLocal(startsAt, tz).date;
   return db.tenant(shop.id, async (q) => {
     const av = await availabilityRange(q, shop, { from: date, days: 1, serviceIds: [], professionalId: b.professional_id, fixedDuration: b.duration_min, exceptBooking: b.id });
@@ -247,7 +258,7 @@ export async function rescheduleByCustomer(db: Db, shop: Shop, token: string, st
     const nw = toLocal(startsAt, tz);
     await q.exec(`insert into booking_events (shop_id, booking_id, from_status, to_status, actor, note) values ($1,$2,$3,$3,'customer',$4)`,
       [shop.id, b.id, b.status, `Remarcado pelo cliente: ${old.date.slice(8)}/${old.date.slice(5, 7)} ${hhmm(old.minutes)} → ${nw.date.slice(8)}/${nw.date.slice(5, 7)} ${hhmm(nw.minutes)}`]);
-    return { startsAt };
+    return { startsAt, changed: true, id: b.id };
   });
 }
 
@@ -294,7 +305,7 @@ export async function rescheduleByStaff(db: Db, ctx: Ctx, bookingId: string, sta
     const proNote = pid !== b.professional_id ? ` com ${(await q.one('select name from professionals where id = $1', [pid]))?.name ?? 'outro profissional'}` : '';
     await q.exec(`insert into booking_events (shop_id, booking_id, from_status, to_status, actor, actor_user_id, note) values ($1,$2,$3,$3,'staff',$4,$5)`,
       [ctx.shop.id, b.id, b.status, ctx.user.id, `Horário mudado: ${old.date.slice(8)}/${old.date.slice(5, 7)} ${hhmm(old.minutes)} → ${nw.date.slice(8)}/${nw.date.slice(5, 7)} ${hhmm(nw.minutes)}${proNote}`]);
-    return { startsAt };
+    return { startsAt, changed: true, id: b.id };
   });
 }
 
@@ -313,7 +324,7 @@ export async function remindersFor(db: Db, ctx: Ctx, date: string) {
     for (const r of rows) {
       r.token = manageToken(secret, r.id);
       // reservas antigas (link aleatório ou sem link) passam a usar o link derivado
-      if (r.manage_token_hash !== sha256(r.token)) await q.exec('update bookings set manage_token_hash = $2 where id = $1', [r.id, sha256(r.token)]);
+      if (!r.manage_token_hash) await q.exec('update bookings set manage_token_hash = $2 where id = $1 and manage_token_hash is null', [r.id, sha256(r.token)]);
       delete r.manage_token_hash;
       r.startMin = toLocal(new Date(r.starts_at), tz).minutes;
     }
@@ -335,7 +346,7 @@ export async function markReminded(db: Db, ctx: Ctx, bookingId: string) {
       from bookings b join customers c on c.id = b.customer_id join professionals p on p.id = b.professional_id where b.id = $1 and b.status in ('pending','confirmed')`, [bookingId]);
     if (!b || (!can(ctx, 'agenda.all') && b.professional_id !== ctx.professionalId)) throw notFound('Agendamento não encontrado.');
     const token = manageToken(secret, b.id);
-    await q.exec('update bookings set reminded_at = now(), manage_token_hash = $2 where id = $1', [b.id, sha256(token)]);
+    await q.exec('update bookings set reminded_at = now() where id = $1', [b.id]);
     return { ...b, token };
   });
 }

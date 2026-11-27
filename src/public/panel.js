@@ -23,15 +23,30 @@
     const calc = () => {
       let total = Number(co.dataset.fixed || 0);
       co.querySelectorAll('input[name=svc]:checked').forEach((i) => { total += Number(i.dataset.price || 0); });
-      co.querySelectorAll('input[name=productPrice]').forEach((i) => { total += cents(i.value); });
+      co.querySelectorAll('.prod').forEach((row) => {
+        const name = row.querySelector('[name=productName]'), price = row.querySelector('[name=productPrice]');
+        const hasName = !!name.value.trim(), hasPrice = !!price.value.trim();
+        name.setCustomValidity(hasPrice && !hasName ? 'Informe o nome do produto.' : '');
+        price.setCustomValidity(hasName && !cents(price.value) ? 'Informe o preço do produto.' : '');
+        if (hasName) total += cents(price.value);
+      });
       total = Math.max(0, total - cents(co.querySelector('#ds')?.value));
       co.querySelectorAll('[data-total]').forEach((e) => { e.textContent = brl(total); });
       const method = co.querySelector('input[name=method1]:checked')?.value;
-      const cash = co.querySelector('.cash-only');
-      if (cash) cash.hidden = method !== 'dinheiro';
-      const rec = cents(co.querySelector('[data-received]')?.value), out = co.querySelector('[data-change]');
-      const second = cents(co.querySelector('#a2')?.value);
-      if (out) out.textContent = rec ? (rec >= total - second ? `Troco: ${brl(rec - (total - second))}` : `Faltam ${brl(total - second - rec)}`) : '';
+      const method2 = co.querySelector('#m2'), amount2 = co.querySelector('#a2');
+      const second = cents(amount2.value);
+      method2.setCustomValidity(amount2.value.trim() && !method2.value ? 'Selecione a segunda forma de pagamento.'
+        : method2.value && method2.value === method ? 'Escolha duas formas de pagamento diferentes.' : '');
+      amount2.setCustomValidity(method2.value && (second <= 0 || second >= total) ? 'Informe uma parte maior que zero e menor que o total.' : '');
+      const cashDue = method === 'dinheiro' ? total - (method2.value ? second : 0) : method2.value === 'dinheiro' ? second : 0;
+      const received = co.querySelector('[data-received]'), change = co.querySelector('[data-change]');
+      const usingCash = method === 'dinheiro' || method2.value === 'dinheiro';
+      co.querySelector('.cash-only').hidden = !usingCash;
+      received.disabled = !usingCash;
+      const difference = cents(received.value) - cashDue;
+      const showChange = usingCash && !!received.value.trim();
+      received.setCustomValidity(showChange && difference < 0 ? 'O dinheiro recebido é insuficiente.' : '');
+      change.textContent = showChange ? (difference < 0 ? `Faltam ${brl(-difference)}` : `Troco: ${brl(difference)}`) : '';
     };
     co.addEventListener('input', calc); co.addEventListener('change', calc); calc();
   }
@@ -42,6 +57,9 @@
     if (!(f instanceof HTMLFormElement) || f.method.toLowerCase() !== 'post') return;
     if (f.dataset.sent) { e.preventDefault(); return; }
     f.dataset.sent = '1';
+    if (f.classList.contains('remind')) {
+      window.addEventListener('focus', () => location.reload(), { once: true });
+    }
     setTimeout(() => { delete f.dataset.sent; }, 4000);
   });
 
@@ -61,17 +79,6 @@
     });
     week.after(btn);
   }
-
-  // lembrete: o WhatsApp abre em outra aba; aqui a linha já mostra que foi enviado
-  document.addEventListener('submit', (e) => {
-    const f = e.target;
-    if (!(f instanceof HTMLFormElement) || !f.classList.contains('remind')) return;
-    setTimeout(() => {
-      const row = f.closest('li'), st = row && row.querySelector('.rm');
-      if (st && !st.classList.contains('ok')) { st.className = 'rm sent'; st.textContent = 'WhatsApp aberto agora'; }
-      const b = f.querySelector('button'); if (b) { b.classList.remove('primary'); b.lastChild.textContent = ' Reenviar'; }
-    }, 300);
-  });
 
   // tela Hoje: atualiza sozinha a cada 2 minutos (barbeiro deixa aberta no balcão), menos se alguém estiver digitando
   if (document.body.classList.contains('page-hoje')) {

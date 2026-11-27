@@ -95,7 +95,7 @@ export function bookingFlow(d: ShopData, sel: Sel & { pro?: boolean }, extra: { 
   const err = extra.error ? h`<div class="alert" role="alert">${extra.error}</div>` : '';
   if (!sel.s.length || (!sel.p && !sel.pro && !extra.quote)) {
     step = 1;
-    body = h`<h2>Escolha o serviço</h2><p class="hint">Pode marcar mais de um. Tempo e valor somam.</p>
+    body = h`<h2>Escolha o serviço</h2>${err}<p class="hint">Pode marcar mais de um. Tempo e valor somam.</p>
       <form method="get" action="${base}" class="menu-form">
         <ul class="menu">${d.services.map((x) => h`<li><label class="item"><input type="checkbox" name="s" value="${x.id}" ${sel.s.includes(x.id) ? 'checked' : ''}>
           <span class="box">${ICON.check}</span><span class="nm">${x.name}</span><span class="dots"></span><span class="pr">${brl(x.price_cents)}</span>
@@ -157,7 +157,7 @@ export function managePage(d: ShopData, b: any, token: string, o: { fresh?: bool
   const gcal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(services + ' · ' + s.name)}&dates=${st}/${en}&ctz=${encodeURIComponent(s.timezone)}&location=${encodeURIComponent(s.address)}`;
   const link = `/b/${s.slug}/reserva/${token}`;
   return frame(d, `Sua reserva · ${s.name}`, h`<section class="book ticket">
-    ${o.fresh ? h`<p class="ok">${ICON.check} Horário reservado</p><h2>Até ${L.date === toLocal(clock.now(), s.timezone).date ? 'hoje' : dayLabel(L.date).toLowerCase()}, ${b.customer_name.split(' ')[0]}.</h2>` : h`<h2>Sua reserva</h2>`}
+    ${o.fresh && b.status === 'confirmed' ? h`<p class="ok">${ICON.check} Horário reservado</p><h2>Até ${L.date === toLocal(clock.now(), s.timezone).date ? 'hoje' : dayLabel(L.date).toLowerCase()}, ${b.customer_name.split(' ')[0]}.</h2>` : h`<h2>Sua reserva</h2>`}
     ${o.error ? h`<div class="alert" role="alert">${o.error}</div>` : ''}
     ${o.moved ? h`<p class="ok" role="status">${ICON.check} Horário remarcado</p>` : ''}
     ${b.status === 'cancelled' ? h`<div class="alert">${o.cancelled ? 'Reserva cancelada. O horário foi liberado.' : 'Esta reserva foi cancelada.'}</div>` : ''}
@@ -175,7 +175,7 @@ export function managePage(d: ShopData, b: any, token: string, o: { fresh?: bool
       ${b.canChange ? h`<a class="btn" href="${link}?remarcar=1#remarcar">${ICON.clock} Remarcar</a>` : ''}
       ${s.phone ? h`<a class="btn" href="https://wa.me/${s.phone.length <= 11 ? '55' + s.phone : s.phone}?text=${encodeURIComponent(`Olá! Tenho horário ${dayLabel(L.date)} às ${hhmm(L.minutes)} (${services}).`)}" target="_blank" rel="noopener">Falar com a barbearia</a>` : ''}
     </div>` : ''}
-    ${o.fresh ? h`<p class="hint keep">Guarde este link: é por ele que você vê, remarca ou cancela o horário. Ninguém mais tem acesso.</p>` : ''}
+    ${o.fresh ? h`<p class="hint keep">Guarde este link para consultar sua reserva. Compartilhe apenas com quem pode gerenciá-la.</p>` : ''}
     ${o.move ? '' : b.canCancel ? h`<form method="post" action="${link}/cancelar" class="cancel"><button class="btn ghost danger">Cancelar reserva</button></form>` : b.status !== 'cancelled' && b.status !== 'completed' ? h`<p class="hint">Para cancelar ou remarcar agora, fale com a barbearia.</p>` : ''}
     <p><a href="/b/${s.slug}">Fazer outro agendamento</a></p>
   </section>`, { noindex: true });

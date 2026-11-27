@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { h, raw, ICON, Safe } from './html.ts';
 import type { Ctx } from '../domain/accounts.ts';
 import { can } from '../domain/accounts.ts';
@@ -15,15 +16,17 @@ const real = (c: number) => (c / 100).toLocaleString('pt-BR', { minimumFractionD
 const t = (ctx: Ctx, iso: any) => { const l = toLocal(new Date(iso), ctx.shop.timezone); return { date: l.date, time: hhmm(l.minutes) }; };
 
 /* ---------------- comanda ---------------- */
-export function checkoutPage(ctx: Ctx, d: { booking: any; services: any[]; pros: any[] }, f: F) {
+export function checkoutPage(ctx: Ctx, d: { booking: any; services: any[]; pros: any[]; closed: boolean }, f: F) {
   const base = `/app/s/${ctx.shop.slug}`;
   const b = d.booking;
   const fixed = b ? b.items.reduce((s: number, i: any) => s + i.price_cents, 0) : 0;
   const when = b ? t(ctx, b.starts_at) : null;
   return layout(ctx, 'caixa', b ? 'Fechar comanda' : 'Venda avulsa', h`
-    ${b?.paid ? h`<div class="flash ok">A comanda deste atendimento já foi fechada. <a href="${base}/caixa?date=${when!.date}">Ver no caixa</a></div>` : ''}
+    ${b?.paid_at ? h`<div class="flash ok">A comanda deste atendimento já foi fechada. ${can(ctx, 'cash.view') ? h`<a href="${base}/caixa?date=${t(ctx, b.paid_at).date}">Ver no caixa</a>` : ''}</div>` : ''}
+    ${d.closed ? h`<p class="flash" role="status">O caixa de hoje está fechado.</p>` : ''}
     <form method="post" action="${base}/caixa/comanda" class="co" data-fixed="${fixed}">
       <input type="hidden" name="bookingId" value="${b?.id ?? ''}">
+      ${b ? '' : h`<input type="hidden" name="requestKey" value="${randomUUID()}">`}
       <div class="co-main">
         ${b ? h`<section class="block co-who"><span class="ava">${initials(b.customer)}</span><span class="who"><b>${b.customer}</b><small>${dayLabel(when!.date)}, ${when!.time} · com ${b.pro_name}</small></span>${chip(b.status)}</section>`
           : h`<section class="block"><h2>Quem atendeu</h2><div class="grid3">
@@ -45,12 +48,12 @@ export function checkoutPage(ctx: Ctx, d: { booking: any; services: any[]; pros:
         <b class="co-total" data-total>${brl(fixed)}</b>
         <fieldset class="field"><legend>Como pagou</legend>
           <div class="methods">${Object.entries(METHODS).map(([k, l], i) => h`<label><input type="radio" name="method1" value="${k}" ${i === 0 ? 'checked' : ''} required><span>${l}</span></label>`)}</div></fieldset>
-        <div class="field cash-only"><label for="rc">Valor recebido em dinheiro</label><div class="affix pre"><span>R$</span><input class="input" id="rc" inputmode="decimal" placeholder="0,00" data-received></div><small class="hint" data-change></small></div>
+        <div class="field cash-only"><label for="rc">Valor recebido em dinheiro (opcional)</label><div class="affix pre"><span>R$</span><input class="input" id="rc" name="cashReceived" inputmode="decimal" placeholder="0,00" data-received></div><small class="hint" aria-live="polite" data-change></small></div>
         <details class="split"><summary>Dividir em duas formas</summary>
           <div class="grid2"><div class="field"><label for="m2">Segunda forma</label><select class="input" id="m2" name="method2"><option value="">—</option>${Object.entries(METHODS).map(([k, l]) => h`<option value="${k}">${l}</option>`)}</select></div>
           <div class="field"><label for="a2">Valor</label><div class="affix pre"><span>R$</span><input class="input" id="a2" name="amount2" inputmode="decimal" placeholder="0,00" data-money></div></div></div>
           <p class="hint">O restante fica na primeira forma.</p></details>
-        <button class="btn primary wide co-go" ${b?.paid ? 'disabled' : ''}>${ICON.check} Receber <span data-total>${brl(fixed)}</span></button>
+        <button class="btn primary wide co-go" ${b?.paid_at || d.closed ? 'disabled' : ''}>${ICON.check} Receber <span data-total>${brl(fixed)}</span></button>
         ${b ? h`<a class="btn ghost wide" href="${base}/reserva/${b.id}">Voltar sem receber</a>` : ''}
       </aside>
     </form>`, f);
@@ -180,6 +183,7 @@ export function customerPage(ctx: Ctx, c: any, f: F) {
           <div class="kpi"><span class="k">Faltas</span><b class="${c.noshows ? 'warn-t' : ''}">${c.noshows}</b><small>horários sem aparecer</small></div>
         </div>
         <section class="block"><h2>Histórico</h2>
+          ${c.historySize > c.bookings.length ? h`<p class="hint">Mostrando os ${c.bookings.length} horários mais recentes de ${c.historySize}.</p>` : ''}
           ${c.bookings.length ? h`<ul class="rows">${c.bookings.map((b: any) => { const w = t(ctx, b.starts_at); return h`<li class="row"><a class="row-main" href="${base}/reserva/${b.id}"><span class="t">${ddmm(w.date)}</span><span class="who"><b>${b.services ?? '—'}</b><small>${w.time} · ${b.pro_name} · ${brl(b.price_cents)}</small></span></a>${chip(b.status)}</li>`; })}</ul>` : h`<p class="empty">Sem horários ainda.</p>`}
         </section>
       </div>

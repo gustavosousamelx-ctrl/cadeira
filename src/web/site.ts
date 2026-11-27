@@ -37,7 +37,8 @@ const shot = (o: { src: string; w: number; h: number; alt: string; mob?: { src: 
   ${o.mob ? h`<source media="(max-width: 700px)" srcset="/static/img/${o.mob.src}" width="${o.mob.w}" height="${o.mob.h}">` : ''}
   <img src="/static/img/${o.src}" alt="${o.alt}" width="${o.w}" height="${o.h}" ${o.eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"></picture>`;
 
-export function home(o: { trialDays: number; user: boolean; plans: any[] }) {
+const launchNotice = h`<p>Você já pode testar o Cadeira. A contratação paga abre após a fase de lançamento.</p>`;
+export function home(o: { trialDays: number; user: boolean; plans: any[]; billingOpen?: boolean }) {
   const priced = o.plans.some((p) => p.price_cents > 0);
   return shell(`${PLATFORM.name} · agenda, lembretes, caixa e comissão para barbearias`, h`
   <main>
@@ -45,7 +46,8 @@ export function home(o: { trialDays: number; user: boolean; plans: any[] }) {
       <div class="hero-copy">
         <p class="kicker">Sistema para barbearia</p>
         <h1>Pare de marcar horário pelo WhatsApp.</h1>
-        <p class="lede">Seu cliente marca pelo link da barbearia, recebe lembrete e remarca sozinho. No balcão, você vê o dia de cada barbeiro, fecha o caixa e já sabe a comissão de cada um.</p>
+        <p class="lede">Seu cliente marca e remarca pelo link. Sua equipe envia o lembrete pelo WhatsApp. No balcão, você vê o dia de cada barbeiro, fecha o caixa e já sabe a comissão de cada um.</p>
+        ${o.billingOpen === false ? launchNotice : ''}
         <div class="cta"><a class="btn red lg" href="/criar-conta">Criar minha barbearia</a><a class="btn line lg" href="/exemplo">Ver uma barbearia de exemplo</a></div>
         <ul class="promises"><li>${o.trialDays} dias grátis</li><li>Sem cartão para testar</li><li>Sem taxa por agendamento</li></ul>
       </div>
@@ -162,8 +164,8 @@ export function contactPage(o: { sent?: boolean; error?: string; v?: Record<stri
   const v = o.v ?? {};
   return shell(`Contato · ${PLATFORM.name}`, h`<main class="auth"><div class="contact-grid">
     <section class="contact-copy"><h1>Fale com a gente</h1><p>Dúvidas sobre o sistema, planos ou ajuda para configurar a sua barbearia. Respondemos por e-mail em dias úteis.</p>
-      <dl><dt>E-mail</dt><dd class="sel">${PLATFORM.supportEmail}</dd>${PLATFORM.supportPhone ? h`<dt>WhatsApp</dt><dd class="sel">${PLATFORM.supportPhone}</dd>` : ''}</dl></section>
-    ${o.sent ? h`<div class="auth-card"><h2>Mensagem enviada</h2><p>Obrigado. Vamos responder no e-mail que você informou.</p><a class="btn" href="/">Voltar ao início</a></div>`
+      <dl>${PLATFORM.supportEmail ? h`<dt>E-mail</dt><dd class="sel">${PLATFORM.supportEmail}</dd>` : ''}${PLATFORM.supportPhone ? h`<dt>WhatsApp</dt><dd class="sel">${PLATFORM.supportPhone}</dd>` : ''}</dl></section>
+    ${o.sent ? h`<div class="auth-card"><h2>Mensagem recebida</h2><p>Obrigado. Vamos responder no e-mail que você informou.</p><a class="btn" href="/">Voltar ao início</a></div>`
       : h`<form method="post" action="/contato" class="auth-card">${flash(undefined, o.error)}
       <div class="field"><label for="cn">Seu nome</label><input class="input" id="cn" name="name" required maxlength="80" value="${v.name ?? ''}"></div>
       <div class="field"><label for="ce">E-mail</label><input class="input" id="ce" name="email" type="email" required maxlength="120" value="${v.email ?? ''}"></div>
@@ -176,13 +178,13 @@ export function contactPage(o: { sent?: boolean; error?: string; v?: Record<stri
   </div></main>`, { user: o.user, desc: 'Contato e suporte.' });
 }
 
-const legalDraft = () => process.env.LEGAL_REVIEWED === '1' ? '' : h`<div class="legal-draft">Texto-modelo. Antes de cobrar, preencha quem oferece o serviço (seu nome, ou a empresa quando tiver) e revise com um advogado.</div>`;
+const legalDraft = () => process.env.LEGAL_REVIEWED === '1' ? '' : h`<div class="legal-draft">Versão preliminar para o período de testes.</div>`;
 /** Quem oferece o serviço: pode ser pessoa física (nome + CPF) antes de abrir empresa, ou empresa (razão social + CNPJ).
  *  COMPANY_DOC aceita CPF (11 dígitos) ou CNPJ (14); o rótulo certo sai do tamanho. Sem ele, o documento não aparece. */
 const CO = () => {
   const d = (process.env.COMPANY_DOC || '').replace(/\D/g, '');
   const doc = d.length === 14 ? `CNPJ ${d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}` : d.length === 11 ? `CPF ${d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')}` : '';
-  return { name: process.env.COMPANY_NAME || '[seu nome ou razão social]', doc, who: `${process.env.COMPANY_NAME || '[seu nome ou razão social]'}${doc ? `, ${doc}` : ''}`, city: process.env.COMPANY_CITY || '[CIDADE/UF]' };
+  return { name: process.env.COMPANY_NAME || 'Cadeira (em fase de lançamento)', doc, who: `${process.env.COMPANY_NAME || 'Cadeira (em fase de lançamento)'}${doc ? `, ${doc}` : ''}`, city: process.env.COMPANY_CITY || '' };
 };
 export function termsPage(user: boolean) {
   const c = CO();
@@ -196,13 +198,13 @@ export function termsPage(user: boolean) {
     <h2>7. Disponibilidade</h2><p>Trabalhamos para manter o sistema no ar e com cópias de segurança diárias, mas podem ocorrer interrupções para manutenção ou por falhas de terceiros. Avisaremos com antecedência sempre que possível.</p>
     <h2>8. Responsabilidade</h2><p>O sistema organiza a agenda e o caixa, mas a prestação do serviço ao cliente final, preços e cobranças da barbearia são responsabilidade da barbearia.</p>
     <h2>9. Alterações</h2><p>Podemos atualizar estes termos. Mudanças relevantes serão avisadas no painel com antecedência.</p>
-    <h2>10. Foro</h2><p>Fica eleito o foro de ${c.city}, salvo regra legal em contrário.</p>
-    <p>Dúvidas: <span class="sel">${PLATFORM.supportEmail}</span></p></main>`, { user, desc: 'Termos de uso.' });
+    <h2>10. Foro</h2><p>${c.city ? 'Fica eleito o foro de ' + c.city + ', salvo regra legal em contrário.' : 'Aplica-se o foro competente conforme a legislação.'}</p>
+    <p>Dúvidas: <a href="/contato">Fale com o suporte</a></p></main>`, { user, desc: 'Termos de uso.' });
 }
 export function privacyPage(user: boolean) {
   const c = CO();
   return shell(`Privacidade · ${PLATFORM.name}`, h`<main class="wrap legal">${legalDraft()}<h1>Política de privacidade</h1><p class="muted">Última atualização: ${new Date().getFullYear()}</p>
-    <h2>1. Quem trata os dados</h2><p>${c.who}, responsável pelo ${PLATFORM.name}. Contato do encarregado de dados: <span class="sel">${process.env.DPO_EMAIL || PLATFORM.supportEmail}</span>.</p>
+    <h2>1. Quem trata os dados</h2><p>${c.who}, responsável pelo ${PLATFORM.name}. Contato do encarregado de dados: ${process.env.DPO_EMAIL || PLATFORM.supportEmail || h`<a href="/contato">Formulário de contato</a>`}.</p>
     <h2>2. Dados dos donos e da equipe das barbearias</h2><p>Coletamos nome, e-mail, senha (guardada de forma irreversível, nunca em texto), dados da barbearia e registros de uso necessários para segurança (como data e ação). Usamos para prestar o serviço, cobrar a assinatura, dar suporte e cumprir obrigações legais. Aqui somos controladores.</p>
     <h2>3. Dados dos clientes das barbearias</h2><p>Quando alguém agenda numa barbearia, registramos nome, WhatsApp, horários e pagamentos em nome daquela barbearia. Ela é a controladora e nós somos operadores: usamos esses dados apenas para o funcionamento do sistema dela. Cada barbearia só acessa os próprios dados.</p>
     <h2>4. Pagamentos</h2><p>A mensalidade é processada por um intermediador de pagamentos, que recebe os dados necessários para a cobrança. Não armazenamos números de cartão.</p>
@@ -213,10 +215,10 @@ export function privacyPage(user: boolean) {
     <h2>9. Segurança</h2><p>Senhas protegidas por hash, conexões cifradas, separação dos dados de cada barbearia no banco, registro de ações sensíveis e cópias de segurança.</p>
     <p>Se acontecer um incidente de segurança que possa causar risco ou dano relevante às pessoas, avisamos a Autoridade Nacional de Proteção de Dados (ANPD) e os titulares afetados em até 3 dias úteis, como pede a Resolução CD/ANPD nº 15/2024, e as barbearias afetadas no mesmo prazo.</p>
     <h2>10. Alterações</h2><p>Esta política pode ser atualizada; mudanças relevantes serão avisadas no painel.</p></main>`, { user, desc: 'Política de privacidade.' });
-}export function plansPage(plans: any[], user: boolean) {
+}export function plansPage(plans: any[], user: boolean, billingOpen = true) {
   const priced = plans.some((p) => p.price_cents > 0);
   return shell(`Planos · ${PLATFORM.name}`, h`<main>
-    <section class="wrap plans-head"><h1>Planos</h1><p>Mensalidade fixa, sem taxa por agendamento, sem fidelidade. Todos começam com teste grátis.</p></section>
+    <section class="wrap plans-head"><h1>Planos</h1><p>Mensalidade fixa, sem taxa por agendamento, sem fidelidade. Todos começam com teste grátis.</p>${billingOpen ? '' : launchNotice}</section>
     <section class="wrap price-grid">${plans.map((p, i) => h`<article class="price-card ${i === 1 ? 'pick' : ''}">
       <h2>${p.name}</h2>
       <p class="pc-price">${p.price_cents > 0 ? h`${brl(p.price_cents)}<small>/mês</small>` : h`<span class="muted">Preço em definição</span>`}</p>
@@ -286,13 +288,13 @@ export function resetPage(o: { token: string; valid: boolean; error?: string }) 
         <a class="btn primary wide" href="/esqueci">Pedir outro link</a></div>`}</main>`);
 }
 
-export function signupPage(o: { v?: Record<string, string>; errors?: Record<string, string>; error?: string; host: string }) {
+export function signupPage(o: { v?: Record<string, string>; errors?: Record<string, string>; error?: string; host: string; unavailable?: boolean }) {
   const v = o.v ?? {}, e = o.errors ?? {};
   const err = (k: string) => e[k] ? h`<small class="ferr" id="${k}-err">${e[k]}</small>` : '';
   const inv = (k: string) => e[k] ? h`aria-invalid="true" aria-describedby="${k}-err"` : '';
   return shell(`Criar conta · ${PLATFORM.name}`, h`<main class="auth"><form method="post" action="/criar-conta" class="auth-card wide-card" novalidate>
     <h1>Criar minha barbearia</h1>
-    <p class="lead">Leva dois minutos. Serviços e horários já vêm sugeridos para você ajustar.</p>
+    ${o.unavailable ? h`<p class="flash err" role="alert">O cadastro está pausado no momento. Novas barbearias estão indisponíveis.</p>` : h`<p class="lead">Leva dois minutos. Serviços e horários já vêm sugeridos para você ajustar.</p>`}
     ${flash(undefined, o.error && !Object.keys(e).length ? o.error : undefined)}
     <fieldset><legend>Você</legend>
       <div class="field"><label for="nm">Seu nome</label><input class="input" id="nm" name="name" autocomplete="name" required value="${v.name ?? ''}" ${inv('name')}>${err('name')}</div>

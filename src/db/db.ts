@@ -73,7 +73,12 @@ pg.types.setTypeParser(20, (v) => Number(v));
  * e a extensão btree_gist (permitido nos provedores citados).
  */
 export async function openPgDb(url: string, o: { max?: number; ssl?: boolean } = {}): Promise<Db> {
-  const pool = new pg.Pool({ connectionString: url, max: o.max ?? 10, ssl: o.ssl ? { rejectUnauthorized: false } : undefined, idleTimeoutMillis: 30_000 });
+  if (o.ssl) {
+    const endpoint = new URL(url);
+    endpoint.searchParams.set('sslmode', 'verify-full');
+    url = endpoint.toString();
+  }
+  const pool = new pg.Pool({ connectionString: url, max: o.max ?? 10, ssl: o.ssl ? { rejectUnauthorized: true } : undefined, idleTimeoutMillis: 30_000 });
   const tx = async <T>(fn: (q: Q) => Promise<T>, shopId?: string): Promise<T> => {
     const c = await pool.connect();
     try {

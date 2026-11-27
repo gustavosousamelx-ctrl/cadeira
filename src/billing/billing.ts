@@ -219,9 +219,11 @@ export async function sweep(db: Db, prov: BillingProvider | null, now = clock.no
   if (!prov) return out;
   // renovações: cria a cobrança do próximo período alguns dias antes do vencimento
   const due = await db.system((q) => q.all(`select s.*, p.price_cents plan_price, pp.price_cents pending_price from saas_subscriptions s join plans p on p.id = s.plan_id left join plans pp on pp.id = s.pending_plan_id
-    where s.status = 'active' and not s.cancel_at_period_end and s.current_period_end <= $1
+    where s.status in ('active','past_due','expired') and s.provider_customer_id is not null
+      and not s.cancel_at_period_end and s.current_period_end <= $1
+      and s.current_period_end + interval '1 month' > $2
       and not exists (select 1 from saas_payments x where x.subscription_id = s.id and (x.status in ('pending','overdue','failed') or (x.status = 'confirmed' and x.period_start >= s.current_period_end)))`,
-    [new Date(now.getTime() + renewDaysBefore * DAY)]));
+    [new Date(now.getTime() + renewDaysBefore * DAY), now]));
   for (const s of due) {
     const planId = s.pending_plan_id ?? s.plan_id;
     const amount = s.pending_plan_id ? s.pending_price : (s.price_cents ?? s.plan_price);

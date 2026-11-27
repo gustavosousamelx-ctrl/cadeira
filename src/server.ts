@@ -10,8 +10,14 @@ import { sweep, reconcile } from './billing/billing.ts';
 import { PLATFORM } from './lib/core.ts';
 import { cleanupAuth } from './domain/accounts.ts';
 import { backfillLinks } from './domain/booking.ts';
-import { mailerFromEnv } from './lib/mail.ts';
+import { deliverSupportNotices, mailerFromEnv } from './lib/mail.ts';
 
+if (process.env.BILLING_PROVIDER === 'asaas' && process.env.ASAAS_ENV === 'production') {
+  const required = ['COMPANY_NAME', 'COMPANY_CITY', 'SUPPORT_EMAIL', 'RESEND_API_KEY', 'MAIL_FROM', 'DATABASE_URL', 'ASAAS_API_KEY', 'ASAAS_WEBHOOK_TOKEN'];
+  const missing = required.filter(key => !process.env[key]?.trim());
+  if (process.env.LEGAL_REVIEWED !== '1') missing.push('LEGAL_REVIEWED');
+  if (missing.length) throw new Error('Para habilitar a cobrança real, configure: ' + missing.join(', '));
+}
 const here = dirname(fileURLToPath(import.meta.url));
 // DATABASE_URL = Postgres de verdade (recomendado para operação comercial). Sem ela, usa o banco embutido em DATA_DIR.
 const db = process.env.DATABASE_URL
@@ -26,7 +32,7 @@ if (process.env.ADMIN_EMAIL) {
   const n = await db.system((q) => q.exec('update users set is_platform_admin = true where email = $1 and not is_platform_admin', [process.env.ADMIN_EMAIL!.trim().toLowerCase()]));
   if (n) console.log('Administrador da plataforma definido por ADMIN_EMAIL.');
 }
-if (process.env.NODE_ENV === 'production' && !process.env.SUPPORT_EMAIL) console.warn('Atenção: defina SUPPORT_EMAIL. Sem ele, o site mostra um e-mail de suporte de exemplo.');
+if (process.env.NODE_ENV === 'production' && !process.env.SUPPORT_EMAIL) console.warn('Atenção: defina SUPPORT_EMAIL. Sem ele, os contatos ficam disponíveis no painel de suporte.');
 const filled = await backfillLinks(db);
 if (filled) console.log(`${filled} horário(s) futuro(s) ganharam link para o cliente confirmar, remarcar ou cancelar.`);
 // a senha só aparece no log quando foi gerada aqui; se veio de DEMO_PASSWORD, quem configurou já sabe
@@ -58,6 +64,9 @@ if (process.env.BACKUP_DIR && db.kind === 'pglite') {
 }
 
 const mailer = mailerFromEnv();
+const retrySupport = () => deliverSupportNotices(db, mailer).catch(() => console.error('Falha ao processar avisos de suporte.'));
+setInterval(retrySupport, 60_000).unref();
+void retrySupport();
 console.log(mailer.id === 'resend' ? 'E-mail: Resend' : 'E-mail: sem provedor (configure RESEND_API_KEY e MAIL_FROM para enviar recuperação de senha)');
 if (process.env.NODE_ENV === 'production' && !process.env.PUBLIC_HOST && !process.env.RENDER_EXTERNAL_HOSTNAME) console.warn('Atenção: defina PUBLIC_HOST (ex.: cadeira.app). Sem ele, os links por e-mail não são enviados.');
 const app = createApp(db, {
