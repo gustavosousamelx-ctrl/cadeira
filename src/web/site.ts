@@ -36,7 +36,7 @@ const shot = (o: { src: string; w: number; h: number; alt: string; mob?: { src: 
   ${o.mob ? h`<source media="(max-width: 700px)" srcset="/static/img/${o.mob.src}?v=${ASSET_V}" width="${o.mob.w}" height="${o.mob.h}">` : ''}
   <img src="/static/img/${o.src}?v=${ASSET_V}" alt="${o.alt}" width="${o.w}" height="${o.h}" ${o.eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"></picture>`;
 
-const launchNotice = h`<p>Você já pode testar o Cadeira. A contratação paga abre após a fase de lançamento.</p>`;
+const launchNotice = h`<p class="launch-note">Você já pode testar o Cadeira. A contratação paga abre após a fase de lançamento.</p>`;
 export function home(o: { trialDays: number; user: boolean; plans: any[]; billingOpen?: boolean }) {
   const priced = o.plans.some((p) => p.price_cents > 0);
   return shell(`${PLATFORM.name} · agenda, lembretes, caixa e comissão para barbearias`, h`
