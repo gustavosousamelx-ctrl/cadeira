@@ -1,0 +1,34 @@
+{
+  "name": "cadeira",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plataforma SaaS de gestão e agendamento para barbearias (marca provisória: Cadeira).",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.ts",
+    "start": "node src/server.ts",
+    "make-admin": "node scripts/make-admin.ts",
+    "restore": "node scripts/restore.ts",
+    "telas": "node scripts/telas.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=1 --test-timeout=60000 \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.6.0",
+    "@hono/node-server": "2.1.11",
+    "hono": "4.13.22",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite-socket": "0.3.0",
+    "@types/node": "24.10.1",
+    "@types/pg": "8.23.1",
+    "axe-core": "4.14.1",
+    "playwright-core": "1.65.1",
+    "typescript": "5.9.3"
+  }
+}

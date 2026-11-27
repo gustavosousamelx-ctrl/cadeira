@@ -1,0 +1,8 @@
+node_modules
+data
+test
+.claude
+*.md
+.git
+auditoria.json
+render.yaml

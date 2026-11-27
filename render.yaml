@@ -1,0 +1,27 @@
+# Publicação no Render (plano gratuito) com um clique: New → Blueprint → escolher este repositório.
+# O banco fica no Neon (Postgres gratuito): cole a connection string DIRETA (sem "-pooler") em DATABASE_URL.
+services:
+  - type: web
+    name: cadeira
+    runtime: docker
+    plan: free
+    healthCheckPath: /saude
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: APP_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      # barbearia de demonstração (para testar e para o link "Barbearia de exemplo"); a senha você escolhe
+      - key: DEMO
+        value: "1"
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: SUPPORT_EMAIL
+        sync: false
+      # seu e-mail: depois de criar a conta pelo site, reinicie o serviço e você vira administrador da plataforma
+      - key: ADMIN_EMAIL
+        sync: false
