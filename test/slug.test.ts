@@ -50,14 +50,73 @@ describe('endereço da página', () => {
     );
   });
 
-  test('o campo do cadastro pede para o celular não corrigir e não exige o formato antigo', async () => {
+  test('o campo do cadastro não pede endereço do Chrome e empilha o prefixo', async () => {
     const H = http(createApp(db, { billing: null }));
     const page = await H.req('/criar-conta');
     assert.equal(page.status, 200);
+    assert.match(page.text, /id="shop-slug"/);
+    assert.match(page.text, /name="slug"/);
+    assert.match(page.text, /autocomplete="off"/);
+    assert.match(page.text, /data-lpignore="true"/);
     assert.match(page.text, /autocapitalize="off"/);
     assert.match(page.text, /autocorrect="off"/);
     assert.match(page.text, /spellcheck="false"/);
     assert.doesNotMatch(page.text, /name="slug"[^>]*pattern=/);
     assert.match(page.text, /Pode escrever com maiúscula ou colar o site/);
+    assert.match(page.text, /<span>[^<]*\/b\/<\/span>/);
+  });
+
+  test('Testar grátis de cada plano leva o plano escolhido para o cadastro', async () => {
+    const H = http(createApp(db, { billing: null }));
+    const home = await H.req('/');
+    const planos = await H.req('/planos');
+    for (const id of ['essencial', 'profissional', 'gestao']) {
+      assert.match(home.text, new RegExp(`/criar-conta\\?plano=${id}`));
+      assert.match(planos.text, new RegExp(`/criar-conta\\?plano=${id}`));
+    }
+    const page = await H.req('/criar-conta?plano=profissional');
+    assert.equal(page.status, 200);
+    assert.match(page.text, /Plano escolhido: <b>Profissional<\/b>/);
+    assert.match(page.text, /name="plano" value="profissional"/);
+    const invalid = await H.req('/criar-conta?plano=nao-existe');
+    assert.doesNotMatch(invalid.text, /Plano escolhido/);
+  });
+
+  test('cadastro pelo formulário normaliza o endereço, grava o plano e abre o painel', async () => {
+    const H = http(createApp(db, { billing: null }));
+    const r = await H.req('/criar-conta', { form: {
+      name: 'Dono Jarvis Teste',
+      email: 'jarvis-teste-v4@teste.com.br',
+      password: 'senha-forte-123',
+      shopName: 'Barbearia Jarvis Teste V4',
+      slug: 'Teste-Jarvis.com.br',
+      plano: 'gestao',
+    } });
+    assert.equal(r.status, 303);
+    assert.equal(r.location, '/app/s/teste-jarvis/comecar');
+    const shop = await shopRow(db, 'teste-jarvis');
+    assert.equal(shop.name, 'Barbearia Jarvis Teste V4');
+    const sub = await db.system((q) => q.one('select plan_id, status from saas_subscriptions where shop_id = $1', [shop.id]));
+    assert.equal(sub!.plan_id, 'gestao');
+    assert.equal(sub!.status, 'trialing');
+    const sid = r.cookies.find((c) => c.startsWith('sid='))!.split(';')[0];
+    const onboarding = await H.req('/app/s/teste-jarvis/comecar', { cookie: sid });
+    assert.equal(onboarding.status, 200);
+  });
+
+  test('plano inválido no cadastro não quebra e usa o plano padrão', async () => {
+    const H = http(createApp(db, { billing: null }));
+    const r = await H.req('/criar-conta', { form: {
+      name: 'Dono Padrao',
+      email: 'jarvis-padrao-v4@teste.com.br',
+      password: 'senha-forte-123',
+      shopName: 'Barbearia Padrao V4',
+      slug: 'jarvis-padrao-v4',
+      plano: 'nao-existe',
+    } });
+    assert.equal(r.status, 303);
+    const shop = await shopRow(db, 'jarvis-padrao-v4');
+    const sub = await db.system((q) => q.one('select plan_id from saas_subscriptions where shop_id = $1', [shop.id]));
+    assert.equal(sub!.plan_id, 'profissional');
   });
 });

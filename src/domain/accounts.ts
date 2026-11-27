@@ -44,7 +44,13 @@ export const signupSchema = z.object({
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 
-export async function signup(db: Db, raw: unknown) {
+export async function activePlanById(db: Db, id: unknown) {
+  const planId = String(id ?? '').trim();
+  if (!/^[a-z0-9-]{2,40}$/.test(planId)) return undefined;
+  return (await db.system((q) => q.one<{ id: string; name: string }>('select id, name from plans where active and id = $1', [planId]))) ?? undefined;
+}
+
+export async function signup(db: Db, raw: unknown, planId?: string) {
   const p = signupSchema.safeParse(raw);
   if (!p.success) throw invalid(p.error.issues[0].message, fieldErrors(p.error));
   const input = p.data;
@@ -57,7 +63,7 @@ export async function signup(db: Db, raw: unknown) {
       if (await q.one('select 1 from users where email = $1', [input.email])) throw emailTaken();
       if (await q.one('select 1 from shops where slug = $1', [input.slug])) throw slugTaken();
       const user = await q.one<User>('insert into users (email, name, password_hash) values ($1,$2,$3) returning id, email, name, is_platform_admin', [input.email, input.name, hash]);
-      const shop = await provisionShop(q, { name: input.shopName, slug: input.slug, ownerId: user!.id, ownerName: input.name });
+      const shop = await provisionShop(q, { name: input.shopName, slug: input.slug, ownerId: user!.id, ownerName: input.name, planId });
       return { user: user!, shop };
     });
   } catch (e: any) {

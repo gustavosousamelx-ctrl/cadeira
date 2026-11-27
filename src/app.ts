@@ -13,7 +13,7 @@ function splitPick(name: string, phone: string): [string, string] {
   if (i < 0) return [name, phone];
   return [name.slice(0, i).trim(), digits(phone) ? phone : digits(name.slice(i + 3))];
 }
-import { signup, login, logout, userFromSession, contextFor, shopsOf, publicShop, createSession, grantStaffAccess, can, must, requestPasswordReset, resetTokenValid, resetPassword, type User, type Ctx } from './domain/accounts.ts';
+import { signup, login, logout, userFromSession, contextFor, shopsOf, publicShop, createSession, grantStaffAccess, can, must, requestPasswordReset, resetTokenValid, resetPassword, activePlanById, type User, type Ctx } from './domain/accounts.ts';
 import { deliverSupportNotices, mailerFromEnv, type Mailer } from './lib/mail.ts';
 import { ICON_SVG } from './web/html.ts';
 import { availability, availabilityRange, quote, createBooking, changeStatus, agendaDay, findByToken, cancelByCustomer, confirmByCustomer, rescheduleOptions, rescheduleByCustomer, staffMoveOptions, rescheduleByStaff, manageToken, linkSecret, remindersFor, markReminded, reminderText, waNumber } from './domain/booking.ts';
@@ -172,18 +172,20 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   });
   app.get('/criar-conta', async (c) => {
     const available = await db.system(q => q.one('select 1 from plans where active limit 1'));
-    return c.html(site.signupPage({ host: host(c), unavailable: !available }), available ? 200 : 503);
+    const plan = await activePlanById(db, c.req.query('plano'));
+    return c.html(site.signupPage({ host: host(c), unavailable: !available, plan }), available ? 200 : 503);
   });
   app.post('/criar-conta', async (c) => {
     const f = await form(c);
     f.slug = slugify(String(f.slug || '')) || slugify(String(f.shopName || ''));
+    const plan = await activePlanById(db, f.plano);
     try {
       rateLimit(`signup:${ip(c)}`, 5, 60 * 60_000);
-      const { user, shop } = await signup(db, f);
+      const { user, shop } = await signup(db, f, plan?.id);
       setSession(c, await createSession(db, user.id));
       return go(c, `/app/s/${shop.slug}/comecar`, { ok: 'welcome' });
     } catch (e) {
-      if (e instanceof AppError) return c.html(site.signupPage({ v: { ...f, password: '' }, errors: (e.extra as any) ?? {}, error: e.message, host: host(c), unavailable: e.code === 'signup_paused' }), e.status as any);
+      if (e instanceof AppError) return c.html(site.signupPage({ v: { ...f, password: '' }, errors: (e.extra as any) ?? {}, error: e.message, host: host(c), unavailable: e.code === 'signup_paused', plan }), e.status as any);
       throw e;
     }
   });

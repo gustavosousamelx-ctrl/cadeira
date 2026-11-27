@@ -14,7 +14,7 @@
   window.addEventListener('pageshow', () => document.querySelectorAll('form[data-sent]').forEach((f) => { delete f.dataset.sent; f.querySelectorAll('[aria-busy]').forEach((b) => b.removeAttribute('aria-busy')); }));
 
   // Endereço da página: vai normalizando o que a pessoa digita (maiúscula, acento, .com.br, etc.).
-  const slugInput = document.querySelector('#sl[name="slug"]');
+  const slugInput = document.querySelector('#shop-slug, input[name="slug"]');
   if (slugInput instanceof HTMLInputElement) {
     const normalizeSlug = (v) => {
       let t = String(v ?? '').trim().toLowerCase();

@@ -217,7 +217,7 @@ function priceCards(plans: any[]) {
       <p class="pc-price">${p.price_cents > 0 ? h`${brl(p.price_cents)}<small>/mês</small>` : h`<span class="muted">Preço em definição</span>`}</p>
       <p class="pc-trial">${p.trial_days} dias de teste</p>
       <ul><li>${p.max_professionals ? `Até ${p.max_professionals} profissionais` : 'Profissionais ilimitados'}</li>${(p.features as string[]).map((f) => h`<li>${FEATURE[f] ?? f}${SOON.has(f) ? h` <span class="soon">em breve</span>` : ''}</li>`)}</ul>
-      <a class="btn ${i === 1 ? 'primary' : ''} wide" href="/criar-conta">Testar grátis</a></article>`);
+      <a class="btn ${i === 1 ? 'primary' : ''} wide" href="/criar-conta?plano=${p.id}">Testar grátis</a></article>`);
 }
 export function plansPage(plans: any[], user: boolean, billingOpen = true) {
   const priced = plans.some((p) => p.price_cents > 0);
@@ -287,13 +287,16 @@ export function resetPage(o: { token: string; valid: boolean; error?: string }) 
         <a class="btn primary wide" href="/esqueci">Pedir outro link</a></div>`}</main>`);
 }
 
-export function signupPage(o: { v?: Record<string, string>; errors?: Record<string, string>; error?: string; host: string; unavailable?: boolean }) {
+export function signupPage(o: { v?: Record<string, string>; errors?: Record<string, string>; error?: string; host: string; unavailable?: boolean; plan?: { id: string; name: string } }) {
   const v = o.v ?? {}, e = o.errors ?? {};
   const err = (k: string) => e[k] ? h`<small class="ferr" id="${k}-err">${e[k]}</small>` : '';
   const inv = (k: string) => e[k] ? h`aria-invalid="true" aria-describedby="${k}-err"` : '';
+  const planId = o.plan?.id ?? v.plano ?? '';
   return shell(`Criar conta · ${PLATFORM.name}`, h`<main class="auth"><form method="post" action="/criar-conta" class="auth-card wide-card" novalidate>
     <h1>Criar minha barbearia</h1>
     ${o.unavailable ? h`<p class="flash err" role="alert">O cadastro está pausado no momento. Novas barbearias estão indisponíveis.</p>` : h`<p class="lead">Leva dois minutos. Serviços e horários já vêm sugeridos para você ajustar.</p>`}
+    ${o.plan ? h`<p class="plan-picked">Plano escolhido: <b>${o.plan.name}</b></p>` : ''}
+    ${planId ? h`<input type="hidden" name="plano" value="${planId}">` : ''}
     ${flash(undefined, o.error && !Object.keys(e).length ? o.error : undefined)}
     <fieldset><legend>Você</legend>
       <div class="field"><label for="nm">Seu nome</label><input class="input" id="nm" name="name" autocomplete="name" required value="${v.name ?? ''}" ${inv('name')}>${err('name')}</div>
@@ -302,7 +305,7 @@ export function signupPage(o: { v?: Record<string, string>; errors?: Record<stri
     </fieldset>
     <fieldset><legend>A barbearia</legend>
       <div class="field"><label for="sn">Nome da barbearia</label><input class="input" id="sn" name="shopName" required value="${v.shopName ?? ''}" ${inv('shopName')}>${err('shopName')}</div>
-      <div class="field"><label for="sl">Endereço da sua página</label><div class="slug"><span>${o.host}/b/</span><input class="input" id="sl" name="slug" value="${v.slug ?? ''}" placeholder="sua-barbearia" autocapitalize="off" autocorrect="off" spellcheck="false" ${inv('slug')}></div><small class="hint">Pode escrever com maiúscula ou colar o site, a gente ajusta. Se deixar em branco, usamos o nome.</small>${err('slug')}</div>
+      <div class="field"><label for="shop-slug">Endereço da sua página</label><div class="slug"><span>${o.host}/b/</span><input class="input" id="shop-slug" name="slug" value="${v.slug ?? ''}" placeholder="sua-barbearia" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other" ${inv('slug')}></div><small class="hint">Pode escrever com maiúscula ou colar o site, a gente ajusta. Se deixar em branco, usamos o nome.</small>${err('slug')}</div>
     </fieldset>
     <button class="btn primary wide">Criar barbearia</button>
     <p class="hint terms">Ao criar a conta você concorda com os <a href="/termos" target="_blank">Termos de uso</a> e a <a href="/privacidade" target="_blank">Política de privacidade</a>. Não pedimos cartão para testar.</p>
