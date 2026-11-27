@@ -165,7 +165,7 @@ export function customersPage(ctx: Ctx, d: any, f: F) {
       ${d.list.map((c: any) => { const s = since(c.last_visit); return h`<tr><td><a href="${base}/${c.id}" class="cli"><span class="ava">${initials(c.name)}</span><span><b>${c.name}</b><small class="muted">${fmtPhone(c.phone)}</small></span></a></td>
         <td class="r">${c.visits}${c.noshows ? h`<small class="warn-t">${c.noshows} ${c.noshows === 1 ? 'falta' : 'faltas'}</small>` : ''}</td><td>${c.next_visit ? h`<span class="tag ok">volta ${day(c.next_visit)}</span>` : c.last_visit ? h`${day(c.last_visit)} <small class="muted">há ${s} dias</small>` : h`<span class="muted">—</span>`}</td>
         <td class="r">${c.spent ? brl(c.spent) : h`<span class="muted">—</span>`}</td>
-        <td class="r">${c.tag === 'sumido' ? h`<a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/55${c.phone}?text=${encodeURIComponent(`Olá, ${c.name.split(' ')[0]}! Faz tempo que você não passa na ${ctx.shop.name}. Quer marcar um horário? Agende por aqui:`)}">Chamar de volta</a>` : ''}</td></tr>`; })}
+        <td class="r">${c.tag === 'sumido' ? h`<a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/55${c.phone}?text=${encodeURIComponent(`Olá, ${c.name.split(' ')[0]}! Faz tempo que você não passa na ${ctx.shop.name}. Quer marcar um horário? Agende por aqui: ${d.bookUrl ?? ''}`)}">Chamar de volta</a>` : ''}</td></tr>`; })}
     </tbody></table></div>` : h`<p class="empty">${d.q ? 'Nenhum cliente encontrado.' : 'Os clientes aparecem aqui quando marcam horário ou passam no caixa.'}</p>`}`, f);
 }
 

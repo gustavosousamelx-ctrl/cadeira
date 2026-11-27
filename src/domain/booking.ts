@@ -102,6 +102,7 @@ export const bookingSchema = z.object({
   startsAt: z.string().datetime({ offset: true }),
   name: z.string().trim().min(2, 'Informe o nome.').max(80),
   phone: z.string().transform(digits).pipe(z.string().regex(/^\d{10,11}$/, 'Informe o WhatsApp com DDD.')),
+  requestKey: z.string().regex(/^[\w-]{16,64}$/).optional(),
 });
 
 export async function createBooking(db: Db, shop: Shop, raw: unknown, actor: { kind: 'customer' } | { kind: 'staff'; ctx: Ctx }) {
@@ -138,9 +139,9 @@ export async function createBooking(db: Db, shop: Shop, raw: unknown, actor: { k
     for (const pid of candidates) {
       await q.exec('savepoint try_slot');
       try {
-        booking = await q.one(`insert into bookings (id, shop_id, professional_id, customer_id, starts_at, ends_at, duration_min, price_cents, status, source, manage_token_hash, created_by, contact_name)
-          values ($12,$1,$2,$3,$4,$5,$6,$7,'confirmed',$8,$9,$10,$11) returning id, professional_id, starts_at, ends_at, price_cents, duration_min, status`,
-          [shop.id, pid, cust!.id, startsAt, endsAt, av.durationMin, av.priceCents, staff ? 'staff' : 'online', sha256(token), staff ? actor.ctx.user.id : null, i.name, id]);
+        booking = await q.one(`insert into bookings (id, shop_id, professional_id, customer_id, starts_at, ends_at, duration_min, price_cents, status, source, manage_token_hash, created_by, contact_name, request_key)
+          values ($12,$1,$2,$3,$4,$5,$6,$7,'confirmed',$8,$9,$10,$11,$13) returning id, professional_id, starts_at, ends_at, price_cents, duration_min, status`,
+          [shop.id, pid, cust!.id, startsAt, endsAt, av.durationMin, av.priceCents, staff ? 'staff' : 'online', sha256(token), staff ? actor.ctx.user.id : null, i.name, id, i.requestKey ? sha256(i.requestKey) : null]);
         await q.exec('release savepoint try_slot');
         break;
       } catch (e: any) {

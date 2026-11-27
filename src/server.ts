@@ -26,6 +26,7 @@ if (process.env.ADMIN_EMAIL) {
   const n = await db.system((q) => q.exec('update users set is_platform_admin = true where email = $1 and not is_platform_admin', [process.env.ADMIN_EMAIL!.trim().toLowerCase()]));
   if (n) console.log('Administrador da plataforma definido por ADMIN_EMAIL.');
 }
+if (process.env.NODE_ENV === 'production' && !process.env.SUPPORT_EMAIL) console.warn('Atenção: defina SUPPORT_EMAIL. Sem ele, o site mostra um e-mail de suporte de exemplo.');
 const filled = await backfillLinks(db);
 if (filled) console.log(`${filled} horário(s) futuro(s) ganharam link para o cliente confirmar, remarcar ou cancelar.`);
 // a senha só aparece no log quando foi gerada aqui; se veio de DEMO_PASSWORD, quem configurou já sabe

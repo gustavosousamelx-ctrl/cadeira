@@ -25,3 +25,10 @@ services:
       # seu e-mail: depois de criar a conta pelo site, reinicie o serviço e você vira administrador da plataforma
       - key: ADMIN_EMAIL
         sync: false
+      # e-mail de verdade (recuperação de senha, avisos ao dono e ao suporte). Sem eles, nada é enviado.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      # cobrança online: só quando tiver conta no Asaas (ver COLOCAR-NO-AR.md). Sem isso, fica em "fase de lançamento".
+      # BILLING_PROVIDER=asaas, ASAAS_API_KEY, ASAAS_WEBHOOK_TOKEN, ASAAS_ENV

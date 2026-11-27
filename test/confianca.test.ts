@@ -23,14 +23,20 @@ describe('confiança no agendamento', () => {
   after(() => db.close());
 
   test('toque duplo: o segundo envio leva à reserva já feita, não a "horário ocupado"', async () => {
-    const form = { s: [ids.services[0].id], p: ids.pros[0].id, t: T('10:00'), name: 'Igor Duplo', phone: '(11) 95555-1212', website: '' };
+    const form = { s: [ids.services[0].id], p: ids.pros[0].id, t: T('10:00'), name: 'Igor Duplo', phone: '(11) 95555-1212', website: '', k: 'chave-do-formulario-0001' };
     const a = await H.req('/b/confia/reservar', { form });
     const b = await H.req('/b/confia/reservar', { form });
     assert.equal(a.status, 303); assert.equal(b.status, 303);
     assert.equal(a.location, b.location);
     // outra pessoa no mesmo horário continua vendo "ocupado"
-    const other = await H.req('/b/confia/reservar', { form: { ...form, name: 'Outro', phone: '11944443333' } });
+    const other = await H.req('/b/confia/reservar', { form: { ...form, name: 'Outro', phone: '11944443333', k: 'outra-chave-0000000002' } });
     assert.equal(other.status, 409);
+    // privacidade: quem sabe o WhatsApp e o horário de outro cliente, mas não tem o formulário dele, não cai na reserva alheia
+    const snoop = await H.req('/b/confia/reservar', { form: { ...form, name: 'Curioso', k: 'chave-de-outra-pessoa-03' } });
+    assert.equal(snoop.status, 409); assert.doesNotMatch(snoop.text, /Igor Duplo/);
+    const nokey = await H.req('/b/confia/reservar', { form: { ...form, k: '' } });
+    assert.equal(nokey.status, 409);
+    assert.match((await H.req(`/b/confia?s=${ids.services[0].id}&p=any&t=${encodeURIComponent(T('16:00'))}`)).text, /name="k" value="[\w-]{24}"/);
     const n = await db.system((q) => q.one(`select count(*)::int n from bookings where starts_at = $1`, [T('10:00')]));
     assert.equal(n!.n, 1);
   });
@@ -58,5 +64,31 @@ describe('confiança no agendamento', () => {
     const r = await H.req(`/b/confia?s=${ids.services[0].id}&p=any&t=${encodeURIComponent(T('15:00'))}`);
     assert.match(r.text, /ficam só com a Barbearia confia/);
     assert.match(r.text, /forms\.js/);
+  });
+});
+
+describe('revisão externa', () => {
+  test('"Chamar de volta" leva o link de agendamento; contato avisa o suporte', async () => {
+    clock.now = () => NOW; resetRateLimits();
+    const db = await openDb(); const mail = memoryMailer();
+    const H = http(createApp(db, { billing: null, mailer: mail, publicHost: 'cadeira.exemplo.com' }));
+    const A = await H.signupShop('volta');
+    const shop = (await publicShop(db, 'volta'))!;
+    // cliente que sumiu: última visita atendida há mais de 45 dias
+    await db.tenant(shop.id, async (q) => {
+      const c = await q.one(`insert into customers (shop_id, name, phone) values ($1,'Rui Sumido','11911110000') returning id`, [shop.id]);
+      const p = await q.one('select id from professionals limit 1');
+      await q.exec(`insert into bookings (shop_id, professional_id, customer_id, starts_at, ends_at, duration_min, price_cents, status, source) values ($1,$2,$3,$4,$5,30,4500,'completed','staff')`, [shop.id, p!.id, c!.id, new Date(NOW.getTime() - 80 * 864e5), new Date(NOW.getTime() - 80 * 864e5 + 18e5)]);
+    });
+    const list = await H.req('/app/s/volta/clientes?filtro=sumido', { cookie: A.cookie });
+    const wa = /href="(https:\/\/wa\.me\/[^"]+)">Chamar de volta/.exec(list.text);
+    assert.ok(wa, 'botão aparece');
+    assert.match(decodeURIComponent(wa![1].replace(/&amp;/g, '&')), /Agende por aqui: https:\/\/cadeira\.exemplo\.com\/b\/volta$/);
+    process.env.SUPPORT_EMAIL = 'suporte@teste.com.br';
+    try {
+      await H.req('/contato', { form: { name: 'Fulano', email: 'f@teste.com.br', message: 'Quero saber dos planos' } });
+      await new Promise((ok) => setTimeout(ok, 30));
+      assert.equal(mail.sent.at(-1)!.to, 'suporte@teste.com.br'); assert.match(mail.sent.at(-1)!.text, /Quero saber dos planos/);
+    } finally { delete process.env.SUPPORT_EMAIL; await db.close(); }
   });
 });

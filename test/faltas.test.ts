@@ -37,7 +37,8 @@ describe('lembretes, confirmação e remarcação', () => {
     token = m![2];
     const page = await E.req(m![1]);
     assert.equal(page.status, 200); assert.match(page.text, /Confirmar presença/); assert.match(page.text, /Remarcar/);
-    assert.match((await E.req('/app/s/lembra/lembretes', { cookie: A.cookie })).text, /Enviado/);
+    const after = (await E.req('/app/s/lembra/lembretes', { cookie: A.cookie })).text;
+    assert.match(after, /WhatsApp aberto/); assert.doesNotMatch(after, /Enviado/, 'o sistema só sabe que abriu o WhatsApp, não que a mensagem foi enviada');
     const row = await E.db.tenant(shop.id, (q) => q.one('select reminded_at from bookings where id = $1', [bookingId]));
     assert.ok(row!.reminded_at);
     // mesmo link de novo: é derivado da reserva, não muda a cada envio

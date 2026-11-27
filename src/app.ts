@@ -5,7 +5,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { bodyLimit } from 'hono/body-limit';
 import { compress } from 'hono/compress';
 import type { Db } from './db/db.ts';
-import { AppError, PLATFORM, clock, rateLimit, slugify, toLocal, notFound, addDays, digits, isDate, localToUtc } from './lib/core.ts';
+import { AppError, PLATFORM, sha256, newToken, clock, rateLimit, slugify, toLocal, notFound, addDays, digits, isDate, localToUtc } from './lib/core.ts';
 
 /** O campo de cliente sugere "Nome — (11) 98765-4321": separa nome e telefone quando o cliente vem da lista. */
 function splitPick(name: string, phone: string): [string, string] {
@@ -440,15 +440,16 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     if (f.website) return c.text('Não foi possível concluir.', 400); // armadilha para robôs
     try {
       rateLimit(`book:${ip(c)}:${d.shop.id}`, 6, 10 * 60_000);
-      const r = await createBooking(db, d.shop, { serviceIds: sel.s, professionalId: sel.p, startsAt: f.t, name: f.name, phone: f.phone }, { kind: 'customer' });
+      const r = await createBooking(db, d.shop, { serviceIds: sel.s, professionalId: sel.p, startsAt: f.t, name: f.name, phone: f.phone, requestKey: /^[\w-]{16,64}$/.test(String(f.k ?? '')) ? f.k : undefined }, { kind: 'customer' });
       void notifyShop(c, d.shop, 'novo', r.booking.id);
       return c.redirect(`/b/${d.shop.slug}/reserva/${r.token}?novo=1`, 303);
     } catch (e) {
       if (!(e instanceof AppError)) throw e;
       if (e.code === 'slot_unavailable') {
-        // toque duplo / reenvio: o mesmo WhatsApp acabou de marcar este horário → mostra a reserva feita, não "ocupado"
-        const mine = f.t && !Number.isNaN(Date.parse(f.t)) ? await db.tenant(d.shop.id, (q) => q.one(`select b.id from bookings b join customers c on c.id = b.customer_id
-          where c.phone = $1 and b.starts_at = $2 and b.status in ('pending','confirmed') and b.created_at > now() - interval '15 minutes'`, [digits(String(f.phone ?? '')), new Date(f.t)])) : null;
+        // toque duplo / reenvio do MESMO formulário: reconhecido pela chave aleatória daquele formulário
+        // (telefone + horário não basta: outra pessoa poderia saber e cairia na reserva alheia)
+        const k = typeof f.k === 'string' && /^[\w-]{16,64}$/.test(f.k) ? f.k : '';
+        const mine = k ? await db.tenant(d.shop.id, (q) => q.one(`select id from bookings where request_key = $1 and status in ('pending','confirmed')`, [sha256(k)])) : null;
         if (mine) return c.redirect(`/b/${d.shop.slug}/reserva/${manageToken(await linkSecret(db), mine.id)}?novo=1`, 303);
         sel.d = toLocal(new Date(f.t), d.shop.timezone).date; sel.t = undefined;
         const extra = await flowData(d, sel);
@@ -561,7 +562,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   });
 
   /* ---------- clientes ---------- */
-  app.get(P('/clientes'), async (c) => { const ctx = await ctxOf(c); return c.html(ops.customersPage(ctx, await listCustomers(db, ctx, { q: c.req.query('q'), filtro: c.req.query('filtro') }), takeFlash(c))); });
+  app.get(P('/clientes'), async (c) => { const ctx = await ctxOf(c); return c.html(ops.customersPage(ctx, { ...(await listCustomers(db, ctx, { q: c.req.query('q'), filtro: c.req.query('filtro') })), bookUrl: abs(c, `/b/${ctx.shop.slug}`) }, takeFlash(c))); });
   app.get(P('/clientes/:id'), async (c) => { const ctx = await ctxOf(c); return c.html(ops.customerPage(ctx, await customerDetail(db, ctx, c.req.param('id')!), takeFlash(c))); });
   app.post(P('/clientes/:id'), async (c) => { const ctx = await ctxOf(c); await saveCustomer(db, ctx, c.req.param('id')!, await form(c)); return go(c, `/app/s/${ctx.shop.slug}/clientes/${c.req.param('id')}`, { ok: 'customer_saved' }); });
   app.get(P('/clientes/:id/exportar'), async (c) => {
@@ -692,6 +693,8 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     if (err) return c.html(site.contactPage({ error: err, v: { ...v }, user: !!c.get('user') }), 422);
     try { rateLimit(`contact:${ip(c)}`, 5, 60 * 60_000); } catch (e) { if (e instanceof AppError) return c.html(site.contactPage({ error: e.message, v, user: !!c.get('user') }), 429); throw e; }
     await db.system((q) => q.exec('insert into contact_messages (name, email, phone, shop_name, message) values ($1,$2,$3,$4,$5)', [v.name.slice(0, 80), v.email, v.phone, v.shop, v.message]));
+    // aviso ao suporte (só quando há um e-mail de suporte de verdade configurado); a mensagem também fica em /admin/suporte
+    if (process.env.SUPPORT_EMAIL) void mailer.send({ to: process.env.SUPPORT_EMAIL, subject: `Contato pelo site: ${v.name.slice(0, 60)}`, text: `${v.name} <${v.email}>${v.phone ? ' · WhatsApp ' + v.phone : ''}${v.shop ? ' · ' + v.shop : ''}\n\n${v.message}\n\nResponda pelo e-mail acima. Todas as mensagens: /admin/suporte` }).catch((e) => console.error('aviso de contato falhou', e));
     return c.redirect('/contato?enviado=1', 303);
   });
   app.get('/termos', (c) => c.html(site.termsPage(!!c.get('user'))));

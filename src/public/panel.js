@@ -68,7 +68,7 @@
     if (!(f instanceof HTMLFormElement) || !f.classList.contains('remind')) return;
     setTimeout(() => {
       const row = f.closest('li'), st = row && row.querySelector('.rm');
-      if (st && !st.classList.contains('ok')) { st.className = 'rm sent'; st.textContent = 'Enviado agora'; }
+      if (st && !st.classList.contains('ok')) { st.className = 'rm sent'; st.textContent = 'WhatsApp aberto agora'; }
       const b = f.querySelector('button'); if (b) { b.classList.remove('primary'); b.lastChild.textContent = ' Reenviar'; }
     }, 300);
   });

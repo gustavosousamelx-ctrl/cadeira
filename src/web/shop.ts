@@ -1,7 +1,7 @@
 import { h, raw, doc, ICON, Safe } from './html.ts';
 import type { Shop } from '../domain/accounts.ts';
 import { resolveTheme, themeVars } from '../domain/themes.ts';
-import { PLATFORM, brl, fmtPhone, hhmm, toLocal, clock, addDays } from '../lib/core.ts';
+import { PLATFORM, brl, fmtPhone, hhmm, toLocal, clock, addDays, newToken } from '../lib/core.ts';
 import { dayLabel } from './panel.ts';
 
 const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -123,7 +123,7 @@ export function bookingFlow(d: ShopData, sel: Sel & { pro?: boolean }, extra: { 
     step = 4;
     body = h`<h2>Seus dados</h2>${err}
       <form method="post" action="${base}/reservar" class="details" autocomplete="on">
-        ${sel.s.map((x) => h`<input type="hidden" name="s" value="${x}">`)}<input type="hidden" name="p" value="${sel.p}"><input type="hidden" name="t" value="${sel.t}">
+        ${sel.s.map((x) => h`<input type="hidden" name="s" value="${x}">`)}<input type="hidden" name="p" value="${sel.p}"><input type="hidden" name="t" value="${sel.t}"><input type="hidden" name="k" value="${newToken(18)}">
         <div class="field"><label for="nm">Nome</label><input class="input" id="nm" name="name" autocomplete="name" required minlength="2" maxlength="80" value="${extra.form?.name ?? ''}"></div>
         <div class="field"><label for="ph">WhatsApp</label><input class="input" id="ph" name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="(11) 98765-4321" value="${extra.form?.phone ?? ''}"></div>
         <div class="hp" aria-hidden="true"><label for="ws">Não preencha</label><input id="ws" name="website" tabindex="-1" autocomplete="off"></div>
