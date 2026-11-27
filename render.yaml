@@ -1,34 +1,34 @@
-# Publicação no Render (plano gratuito) com um clique: New → Blueprint → escolher este repositório.
-# O banco fica no Neon (Postgres gratuito): cole a connection string DIRETA (sem "-pooler") em DATABASE_URL.
+# Publicacao no Render (plano gratuito): New -> Blueprint -> este repositorio.
+# O banco e o Render Postgres gratuito (cadeira-db). A URL do banco e ligada automaticamente.
+# Sem Resend e sem Asaas o site sobe em fase de lancamento (e-mail e cobranca online desligados).
+databases:
+  - name: cadeira-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: 16
 services:
   - type: web
     name: cadeira
     runtime: docker
     plan: free
+    region: oregon
     healthCheckPath: /saude
     envVars:
       - key: NODE_ENV
         value: production
       - key: TRUST_PROXY
         value: "1"
-      - key: APP_SECRET
-        generateValue: true
-      - key: DATABASE_URL
-        sync: false
-      # barbearia de demonstração (para testar e para o link "Barbearia de exemplo"); a senha você escolhe
       - key: DEMO
         value: "1"
+      - key: APP_SECRET
+        generateValue: true
       - key: DEMO_PASSWORD
-        sync: false
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cadeira-db
+          property: connectionString
       - key: SUPPORT_EMAIL
-        sync: false
-      # seu e-mail: depois de criar a conta pelo site, reinicie o serviço e você vira administrador da plataforma
+        value: gustavosousamelx@gmail.com
       - key: ADMIN_EMAIL
-        sync: false
-      # e-mail de verdade (recuperação de senha, avisos ao dono e ao suporte). Sem eles, nada é enviado.
-      - key: RESEND_API_KEY
-        sync: false
-      - key: MAIL_FROM
-        sync: false
-      # cobrança online: só quando tiver conta no Asaas (ver COLOCAR-NO-AR.md). Sem isso, fica em "fase de lançamento".
-      # BILLING_PROVIDER=asaas, ASAAS_API_KEY, ASAAS_WEBHOOK_TOKEN, ASAAS_ENV
+        value: gustavosousamelx@gmail.com
