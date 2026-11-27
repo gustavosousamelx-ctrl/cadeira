@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Db, Q } from '../db/db.ts';
-import { AppError, RESERVED_SLUGS, clock, forbidden, hashPassword, invalid, newToken, notFound, sha256, verifyPassword, rateLimit } from '../lib/core.ts';
+import { AppError, RESERVED_SLUGS, clock, forbidden, hashPassword, invalid, newToken, notFound, sha256, verifyPassword, rateLimit, normalizeSlug } from '../lib/core.ts';
 
 /* ---------- papéis e permissões (verificados sempre no servidor) ---------- */
 export type Role = 'owner' | 'manager' | 'reception' | 'barber';
@@ -40,7 +40,7 @@ export const signupSchema = z.object({
   email: z.string().trim().toLowerCase().email('E-mail inválido.').max(120),
   password: z.string().min(8, 'A senha precisa de pelo menos 8 caracteres.').max(200),
   shopName: z.string().trim().min(2, 'Informe o nome da barbearia.').max(60),
-  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/, 'Use de 3 a 40 letras minúsculas, números ou hífen.'),
+  slug: z.string().transform(normalizeSlug).pipe(z.string().min(3, 'Use pelo menos 3 letras ou números.')),
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 

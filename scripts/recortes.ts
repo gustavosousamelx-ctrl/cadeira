@@ -13,6 +13,16 @@ async function shot(o: { name: string; url: string; w: number; h: number; scale?
   const page = await ctx.newPage();
   await page.goto(BASE + o.url, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
+  // o atalho "Pular para o conteúdo" é o primeiro foco possível; some na foto e não deve aparecer no recorte
+  await page.evaluate(() => {
+    const a = document.activeElement as HTMLElement | null;
+    if (a && typeof a.blur === 'function') a.blur();
+    document.querySelectorAll<HTMLElement>('.skip').forEach((el) => {
+      el.blur();
+      el.style.setProperty('display', 'none', 'important');
+    });
+  });
+  await page.waitForTimeout(120);
   const path = join(OUT, `demo-${o.name}.jpg`);
   if (o.sel) await page.locator(o.sel).first().screenshot({ path, type: 'jpeg', quality: 92 });
   else await page.screenshot({ path, type: 'jpeg', quality: 92, clip: o.clip });
@@ -20,9 +30,9 @@ async function shot(o: { name: string; url: string; w: number; h: number; scale?
   console.log('ok', o.name);
 }
 
-const grab = async (url: string, re: RegExp) => { const ctx = await browser.newContext(); const p = await ctx.newPage(); await p.goto(BASE + url); const m = re.exec(await p.content()); await ctx.close(); return m?.[1]; };
+const grab = async (url: string, re: RegExp) => { const ctx = await browser.newContext(); const p = await ctx.newPage(); await p.goto(BASE + url, { waitUntil: 'load' }); const m = re.exec(await p.content()); await ctx.close(); return m?.[1]; };
 const svc = await grab('/b/navalha', /name="s" value="([0-9a-f-]{36})"/);
-const link = await grab('/app/s/navalha/lembretes?date=2026-12-03', /\/reserva\/([0-9a-f-]{36})/);
+const link = await grab('/app/s/navalha/lembretes?date=2026-12-02', /\/reserva\/([0-9a-f-]{36})/);
 
 // painel no balcão: próximo cliente + resumo + linha do dia
 await shot({ name: 'hoje', url: '/app/s/navalha', w: 1280, h: 900, clip: { x: 232, y: 0, width: 1048, height: 626 } });
@@ -35,9 +45,9 @@ await shot({ name: 'comissao', url: '/app/s/navalha/financeiro', w: 1280, h: 110
 // cliente escolhendo horário no celular
 await shot({ name: 'cliente-horario', url: `/b/navalha?s=${svc}&p=any&d=2026-12-02`, w: 390, h: 844, scale: 2, mobile: true });
 // cliente confirmando ou remarcando (link do lembrete; o servidor de telas mostra esse link ao subir)
-if (process.env.CLIENT_LINK) await shot({ name: 'cliente-link', url: process.env.CLIENT_LINK.replace(/\?.*$/, ''), w: 390, h: 844, scale: 2, mobile: true });
+const clientUrl = (process.env.CLIENT_LINK || (link ? `/b/navalha/reserva/${link}` : '')).replace(/\?.*$/, '');
+if (clientUrl) await shot({ name: 'cliente-link', url: clientUrl, w: 390, h: 844, scale: 2, mobile: true });
 // o mesmo painel no celular do barbeiro (versão do site para telas pequenas)
 await shot({ name: 'hoje-celular', url: '/app/s/navalha', w: 390, h: 844, scale: 2, mobile: true });
 await shot({ name: 'lembretes-celular', url: '/app/s/navalha/lembretes?date=2026-12-02', w: 390, h: 844, scale: 2, mobile: true });
-void link;
 await browser.close();

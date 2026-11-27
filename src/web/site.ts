@@ -302,7 +302,7 @@ export function signupPage(o: { v?: Record<string, string>; errors?: Record<stri
     </fieldset>
     <fieldset><legend>A barbearia</legend>
       <div class="field"><label for="sn">Nome da barbearia</label><input class="input" id="sn" name="shopName" required value="${v.shopName ?? ''}" ${inv('shopName')}>${err('shopName')}</div>
-      <div class="field"><label for="sl">Endereço da sua página</label><div class="slug"><span>${o.host}/b/</span><input class="input" id="sl" name="slug" pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]" value="${v.slug ?? ''}" placeholder="sua-barbearia" ${inv('slug')}></div><small class="hint">Só letras minúsculas, números e hífen. Se deixar em branco, usamos o nome.</small>${err('slug')}</div>
+      <div class="field"><label for="sl">Endereço da sua página</label><div class="slug"><span>${o.host}/b/</span><input class="input" id="sl" name="slug" value="${v.slug ?? ''}" placeholder="sua-barbearia" autocapitalize="off" autocorrect="off" spellcheck="false" ${inv('slug')}></div><small class="hint">Pode escrever com maiúscula ou colar o site, a gente ajusta. Se deixar em branco, usamos o nome.</small>${err('slug')}</div>
     </fieldset>
     <button class="btn primary wide">Criar barbearia</button>
     <p class="hint terms">Ao criar a conta você concorda com os <a href="/termos" target="_blank">Termos de uso</a> e a <a href="/privacidade" target="_blank">Política de privacidade</a>. Não pedimos cartão para testar.</p>

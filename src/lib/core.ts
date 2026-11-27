@@ -71,7 +71,22 @@ export const parseHHMM = (s: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s
 export const brl = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 export const digits = (s: unknown) => String(s ?? '').replace(/\D/g, '');
 export function fmtPhone(p: string) { p = digits(p); if (p.length === 11) return `(${p.slice(0, 2)}) ${p.slice(2, 7)}-${p.slice(7)}`; if (p.length === 10) return `(${p.slice(0, 2)}) ${p.slice(2, 6)}-${p.slice(6)}`; return p; }
-export function slugify(s: string) { return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/&/g, 'e').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40); }
+/** Transforma o que a pessoa digitou no endereço da página (minúsculas, sem acento, sem .com.br, etc.). */
+export function normalizeSlug(s: string) {
+  let t = String(s ?? '').trim().toLowerCase();
+  t = t.replace(/^[a-z][a-z0-9+.-]*:\/\//, '');
+  t = t.replace(/^www\./, '');
+  t = t.replace(/[/?#].*$/, '');
+  t = t.replace(/:\d+$/, '');
+  t = t.replace(/\.+$/, '');
+  t = t.replace(/\.(com\.br|net\.br|org\.br|com|net|org|app|dev|io|co|info|biz|br)$/i, '');
+  t = t.normalize('NFD').replace(/\p{M}/gu, '');
+  t = t.replace(/&/g, 'e');
+  t = t.replace(/[\s._]+/g, '-').replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+  if (t.length > 40) t = t.slice(0, 40).replace(/-+$/g, '');
+  return t;
+}
+export const slugify = (s: string) => normalizeSlug(s);
 
 /* ---------- limite de requisições (memória; trocar por Redis com várias instâncias) ---------- */
 const buckets = new Map<string, { n: number; reset: number }>();

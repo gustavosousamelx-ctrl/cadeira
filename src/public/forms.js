@@ -12,4 +12,30 @@
   });
   // voltar pelo navegador não deixa o formulário travado
   window.addEventListener('pageshow', () => document.querySelectorAll('form[data-sent]').forEach((f) => { delete f.dataset.sent; f.querySelectorAll('[aria-busy]').forEach((b) => b.removeAttribute('aria-busy')); }));
+
+  // Endereço da página: vai normalizando o que a pessoa digita (maiúscula, acento, .com.br, etc.).
+  const slugInput = document.querySelector('#sl[name="slug"]');
+  if (slugInput instanceof HTMLInputElement) {
+    const normalizeSlug = (v) => {
+      let t = String(v ?? '').trim().toLowerCase();
+      t = t.replace(/^[a-z][a-z0-9+.-]*:\/\//, '');
+      t = t.replace(/^www\./, '');
+      t = t.replace(/[/?#].*$/, '');
+      t = t.replace(/:\d+$/, '');
+      t = t.replace(/\.+$/, '');
+      t = t.replace(/\.(com\.br|net\.br|org\.br|com|net|org|app|dev|io|co|info|biz|br)$/i, '');
+      t = t.normalize('NFD').replace(/\p{M}/gu, '');
+      t = t.replace(/&/g, 'e');
+      t = t.replace(/[\s._]+/g, '-').replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+      if (t.length > 40) t = t.slice(0, 40).replace(/-+$/g, '');
+      return t;
+    };
+    const apply = () => {
+      const next = normalizeSlug(slugInput.value);
+      if (slugInput.value !== next) slugInput.value = next;
+    };
+    slugInput.addEventListener('input', apply);
+    slugInput.addEventListener('blur', apply);
+    slugInput.form?.addEventListener('submit', apply);
+  }
 })();

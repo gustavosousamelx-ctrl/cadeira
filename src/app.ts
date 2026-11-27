@@ -176,7 +176,7 @@ export function createApp(db: Db, opts: AppOptions = {}) {
   });
   app.post('/criar-conta', async (c) => {
     const f = await form(c);
-    if (!f.slug && f.shopName) f.slug = slugify(f.shopName);
+    f.slug = slugify(String(f.slug || '')) || slugify(String(f.shopName || ''));
     try {
       rateLimit(`signup:${ip(c)}`, 5, 60 * 60_000);
       const { user, shop } = await signup(db, f);
