@@ -93,13 +93,13 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
         <p class="kicker">Caixa</p>
         <h2>Atendeu, fechou a comanda.</h2>
         <p class="body">Serviço extra, pomada, desconto e pagamento em Pix, dinheiro com troco, débito, crédito ou dividido em dois. No fim do dia, o caixa mostra quanto entrou em cada forma e quanto devia ter na gaveta.</p>
-        <figure class="screen pay">${shot({ src: 'demo-comanda.jpg', w: 682, h: 756, alt: 'Comanda de um corte de 45 reais com as formas de pagamento Pix, dinheiro, débito, crédito ou outro' })}</figure>
+        <figure class="screen pay">${shot({ src: 'demo-comanda.jpg', w: 682, h: 864, alt: 'Comanda de um corte de 45 reais com as formas de pagamento Pix, dinheiro, débito, crédito ou outro' })}</figure>
       </div>
       <div>
         <p class="kicker">Comissão</p>
         <h2>Comissão que o barbeiro entende.</h2>
         <p class="body">Você define a porcentagem de cada um. A cada comanda, o sistema separa o que é dele e o que fica na barbearia, já com o desconto tirado. Produto vendido não entra. Ele vê a dele no celular; você vê a de todos.</p>
-        <figure class="screen">${shot({ src: 'demo-comissao.jpg', w: 1148, h: 692, alt: 'Comissões do mês por barbeiro: quanto atendeu, quanto é dele e quanto fica na barbearia, com explicação do cálculo' })}</figure>
+        <figure class="screen">${shot({ src: 'demo-comissao.jpg', w: 1148, h: 750, alt: 'Comissões do mês por barbeiro: quanto atendeu, quanto é dele e quanto fica na barbearia, com explicação do cálculo' })}</figure>
       </div>
     </div></section>
 
@@ -127,12 +127,7 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
     <section class="prices" id="precos"><div class="wrap">
       <h2>Preços</h2>
       <p class="body">Mensalidade fixa, sem taxa por agendamento. Todos os planos começam com ${o.trialDays} dias grátis e incluem agenda, página de agendamento, lembretes, caixa e clientes.</p>
-      ${!priced ? h`<p class="price-note"><b>Os preços ainda estão sendo definidos.</b><span>Enquanto isso, você testa por ${o.trialDays} dias sem cartão. Nada é cobrado sem você escolher um plano, e o preço aparece aqui antes.</span></p>` : h`<div class="pl">${o.plans.map((p, i) => h`<article class="${i === 1 ? 'pick' : ''}">
-        <h3>${p.name}</h3>
-        <p class="pl-price">${p.price_cents > 0 ? h`<b>${brl(p.price_cents)}</b><small>/mês</small>` : h`<b class="tbd">Preço a definir</b>`}</p>
-        <p class="pl-limit">${p.max_professionals ? `Até ${p.max_professionals} profissionais` : 'Profissionais sem limite'}${(p.features as string[]).includes('comissoes') ? ' · comissões' : ''}</p>
-      </article>`)}</div>`}
-      <p class="more"><a href="/planos">Ver o que cada plano inclui</a></p>
+      ${!priced ? h`<p class="price-note"><b>Os preços ainda estão sendo definidos.</b><span>Enquanto isso, você testa por ${o.trialDays} dias sem cartão. Nada é cobrado sem você escolher um plano, e o preço aparece aqui antes.</span></p>` : h`<div class="price-grid home-prices">${priceCards(o.plans)}</div>`}
     </div></section>
 
     <section class="faq-home"><div class="wrap">
@@ -214,16 +209,21 @@ export function privacyPage(user: boolean) {
     <h2>9. Segurança</h2><p>Senhas protegidas por hash, conexões cifradas, separação dos dados de cada barbearia no banco, registro de ações sensíveis e cópias de segurança.</p>
     <p>Se acontecer um incidente de segurança que possa causar risco ou dano relevante às pessoas, avisamos a Autoridade Nacional de Proteção de Dados (ANPD) e os titulares afetados em até 3 dias úteis, como pede a Resolução CD/ANPD nº 15/2024, e as barbearias afetadas no mesmo prazo.</p>
     <h2>10. Alterações</h2><p>Esta política pode ser atualizada; mudanças relevantes serão avisadas no painel.</p></main>`, { user, desc: 'Política de privacidade.' });
-}export function plansPage(plans: any[], user: boolean, billingOpen = true) {
-  const priced = plans.some((p) => p.price_cents > 0);
-  return shell(`Planos · ${PLATFORM.name}`, h`<main>
-    <section class="wrap plans-head"><h1>Planos</h1><p>Mensalidade fixa, sem taxa por agendamento, sem fidelidade. Todos começam com teste grátis.</p>${billingOpen ? '' : launchNotice}</section>
-    <section class="wrap price-grid">${plans.map((p, i) => h`<article class="price-card ${i === 1 ? 'pick' : ''}">
+}
+/** Cards de plano: os mesmos na página inicial e em /planos. */
+function priceCards(plans: any[]) {
+  return plans.map((p, i) => h`<article class="price-card ${i === 1 ? 'pick' : ''}">
       <h2>${p.name}</h2>
       <p class="pc-price">${p.price_cents > 0 ? h`${brl(p.price_cents)}<small>/mês</small>` : h`<span class="muted">Preço em definição</span>`}</p>
       <p class="pc-trial">${p.trial_days} dias de teste</p>
       <ul><li>${p.max_professionals ? `Até ${p.max_professionals} profissionais` : 'Profissionais ilimitados'}</li>${(p.features as string[]).map((f) => h`<li>${FEATURE[f] ?? f}${SOON.has(f) ? h` <span class="soon">em breve</span>` : ''}</li>`)}</ul>
-      <a class="btn ${i === 1 ? 'primary' : ''} wide" href="/criar-conta">Testar grátis</a></article>`)}</section>
+      <a class="btn ${i === 1 ? 'primary' : ''} wide" href="/criar-conta">Testar grátis</a></article>`);
+}
+export function plansPage(plans: any[], user: boolean, billingOpen = true) {
+  const priced = plans.some((p) => p.price_cents > 0);
+  return shell(`Planos · ${PLATFORM.name}`, h`<main>
+    <section class="wrap plans-head"><h1>Planos</h1><p>Mensalidade fixa, sem taxa por agendamento, sem fidelidade. Todos começam com teste grátis.</p>${billingOpen ? '' : launchNotice}</section>
+    <section class="wrap price-grid">${priceCards(plans)}</section>
     <section class="wrap faq"><h2>Perguntas frequentes</h2>
       <details><summary>Preciso de cartão para testar?</summary><p>Não. Você cria a conta, configura e testa. A cobrança só começa quando você escolhe assinar.</p></details>
       <details><summary>Como pago?</summary><p>Pela tela Assinatura do painel. O pagamento é processado por um intermediador de pagamentos; nós não guardamos dados de cartão.</p></details>

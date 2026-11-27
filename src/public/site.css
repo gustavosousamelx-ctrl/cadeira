@@ -237,6 +237,7 @@ section h2{font-size:clamp(34px,4.4vw,54px)}
   .plain-grid{grid-template-columns:1fr;gap:24px}
 }
 
+.home-prices{margin-top:36px;padding-bottom:0}
 .price-note{margin-top:28px;display:grid;gap:6px;max-width:62ch;border:1.5px solid var(--line2);border-radius:14px;padding:22px 24px}
 .price-note b{font:800 22px/1.2 var(--f-display);letter-spacing:-.02em}
 .price-note span{color:var(--ink2)}
