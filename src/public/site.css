@@ -358,3 +358,20 @@ section h2{font-size:clamp(34px,4.4vw,54px)}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* comissão no celular: exemplo legível em vez da tela do computador encolhida */
+.comm-mob{display:none}
+@media (max-width:700px){
+  .comm-desk{display:none}
+  .comm-mob{display:grid;gap:14px;margin-top:24px;background:var(--bg);border:1.5px solid var(--ink);border-radius:14px;padding:20px}
+  .cm-head{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .cm-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:17px;padding-bottom:14px;border-bottom:1px dashed var(--line2)}
+  .cm-row small{color:var(--muted);font-size:14px;margin-left:4px}
+  .cm-split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cm-split div{display:grid;gap:2px;background:var(--bg2);border-radius:10px;padding:12px}
+  .cm-split div:first-child{background:#FDECEA}
+  .cm-split small{font-size:13px;color:var(--ink2)}
+  .cm-split b{font:800 24px/1.1 var(--f-display);letter-spacing:-.02em}
+  .cm-split div:first-child b{color:var(--red)}
+  .cm-note{font-size:14px;color:var(--muted)}
+}

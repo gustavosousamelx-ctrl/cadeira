@@ -99,7 +99,8 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
         <p class="kicker">Comissão</p>
         <h2>Comissão que o barbeiro entende.</h2>
         <p class="body">Você define a porcentagem de cada um. A cada comanda, o sistema separa o que é dele e o que fica na barbearia, já com o desconto tirado. Produto vendido não entra. Ele vê a dele no celular; você vê a de todos.</p>
-        <figure class="screen">${shot({ src: 'demo-comissao.jpg', w: 1148, h: 750, alt: 'Comissões do mês por barbeiro: quanto atendeu, quanto é dele e quanto fica na barbearia, com explicação do cálculo' })}</figure>
+        <figure class="screen comm-desk">${shot({ src: 'demo-comissao.jpg', w: 1148, h: 750, alt: 'Comissões do mês por barbeiro: quanto atendeu, quanto é dele e quanto fica na barbearia, com explicação do cálculo' })}</figure>
+        <div class="comm-mob" role="img" aria-label="Exemplo: corte de 45 reais com o Rafael, que tem 50 por cento: 22 reais e 50 para ele e 22 reais e 50 para a barbearia"><p class="cm-head">Exemplo de uma comanda</p><div class="cm-row"><span>Corte · Rafael <small>50%</small></span><b>R$ 45,00</b></div><div class="cm-split"><div><small>Para o Rafael</small><b>R$ 22,50</b></div><div><small>Para a barbearia</small><b>R$ 22,50</b></div></div><p class="cm-note">No fim do mês, o financeiro soma tudo por barbeiro.</p></div>
       </div>
     </div></section>
 
