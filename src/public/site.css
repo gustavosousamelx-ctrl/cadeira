@@ -27,7 +27,7 @@ body.site{background:var(--bg);font-size:17px;line-height:1.6}
 .btn[aria-busy="true"]{opacity:.7;cursor:progress}
 
 /* topo */
-.top{background:rgba(255,255,255,.95);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.top{background:var(--bg);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
 .top .wrap{display:flex;align-items:center;gap:16px;min-height:68px}
 .top nav{margin-left:auto;display:flex;gap:24px;align-items:center}
 .top nav a:not(.btn){color:var(--ink);text-decoration:none;font-weight:500;font-size:15px}
