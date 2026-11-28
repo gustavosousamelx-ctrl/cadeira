@@ -375,3 +375,6 @@ section h2{font-size:clamp(34px,4.4vw,54px)}
   .cm-split div:first-child b{color:var(--red)}
   .cm-note{font-size:14px;color:var(--muted)}
 }
+
+.promises a{color:inherit;font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--red)}
+.prices{border-top:1px solid var(--line)}

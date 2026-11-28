@@ -38,6 +38,7 @@ const shot = (o: { src: string; w: number; h: number; alt: string; mob?: { src: 
 
 const launchNotice = h`<p class="launch-note">Você já pode testar o Cadeira. A contratação paga abre após a fase de lançamento.</p>`;
 export function home(o: { trialDays: number; user: boolean; plans: any[]; billingOpen?: boolean }) {
+  const fromPrice = Math.min(...o.plans.map((p: any) => p.price_cents).filter((v: number) => v > 0), Infinity); const hasFrom = Number.isFinite(fromPrice);
   const priced = o.plans.some((p) => p.price_cents > 0);
   return shell(`${PLATFORM.name} · agenda, lembretes, caixa e comissão para barbearias`, h`
   <main>
@@ -48,7 +49,7 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
         <p class="lede">Seu cliente marca e remarca pelo link. Sua equipe envia o lembrete pelo WhatsApp. No balcão, você vê o dia de cada barbeiro, fecha o caixa e já sabe a comissão de cada um.</p>
         ${o.billingOpen === false ? launchNotice : ''}
         <div class="cta"><a class="btn red lg" href="/criar-conta">Criar minha barbearia</a><a class="btn line lg" href="/exemplo">Ver uma barbearia de exemplo</a></div>
-        <ul class="promises"><li>${o.trialDays} dias grátis</li><li>Sem cartão para testar</li><li>Sem taxa por agendamento</li></ul>
+        <ul class="promises">${hasFrom ? h`<li><a href="#precos">A partir de ${brl(fromPrice)}/mês</a></li>` : ''}<li>${o.trialDays} dias grátis</li><li>Sem cartão para testar</li><li>Sem taxa por agendamento</li></ul>
       </div>
       <div class="hero-demo" aria-label="Exemplo: o cliente escolhe o horário e recebe o lembrete">
         <figure class="phone">${shot({ src: 'demo-cliente-horario.jpg', w: 780, h: 1688, alt: 'Página de agendamento no celular do cliente, com os horários livres de amanhã', eager: true })}</figure>
@@ -71,6 +72,12 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
         </ol>
       </div>
       <figure class="screen">${shot({ src: 'demo-hoje.jpg', w: 2096, h: 1252, alt: 'Tela Hoje do painel: próximo cliente às 15:00, resumo do dia e a linha do dia de cada barbeiro', mob: { src: 'demo-hoje-celular.jpg', w: 780, h: 1688 } })}</figure>
+    </div></section>
+
+    <section class="prices" id="precos"><div class="wrap">
+      <h2>Preços</h2>
+      <p class="body">Mensalidade fixa, sem taxa por agendamento. Todos os planos começam com ${o.trialDays} dias grátis e incluem agenda, página de agendamento, lembretes, caixa e clientes.</p>
+      ${!priced ? h`<p class="price-note"><b>Os preços ainda estão sendo definidos.</b><span>Enquanto isso, você testa por ${o.trialDays} dias sem cartão. Nada é cobrado sem você escolher um plano, e o preço aparece aqui antes.</span></p>` : h`<div class="price-grid home-prices">${priceCards(o.plans)}</div>`}
     </div></section>
 
     <section class="loop"><div class="wrap">
@@ -125,11 +132,6 @@ export function home(o: { trialDays: number; user: boolean; plans: any[]; billin
       </table></div>
     </div></section>
 
-    <section class="prices" id="precos"><div class="wrap">
-      <h2>Preços</h2>
-      <p class="body">Mensalidade fixa, sem taxa por agendamento. Todos os planos começam com ${o.trialDays} dias grátis e incluem agenda, página de agendamento, lembretes, caixa e clientes.</p>
-      ${!priced ? h`<p class="price-note"><b>Os preços ainda estão sendo definidos.</b><span>Enquanto isso, você testa por ${o.trialDays} dias sem cartão. Nada é cobrado sem você escolher um plano, e o preço aparece aqui antes.</span></p>` : h`<div class="price-grid home-prices">${priceCards(o.plans)}</div>`}
-    </div></section>
 
     <section class="faq-home"><div class="wrap">
       <h2>Perguntas de quem está pensando em testar</h2>
