@@ -42,6 +42,13 @@ describe('revisão como cliente', () => {
     assert.match(det.text, /Mudar horário/);
   });
 
+  test('novo horário pelo balcão: nome e WhatsApp do cliente não vão para o endereço', async () => {
+    const page = await H.req('/app/s/revisa/novo', { cookie: A.cookie });
+    assert.ok(page.text.includes('<form method="post" class="nb" action="/app/s/revisa/novo/horarios#horarios">'));
+    const r = await H.req('/app/s/revisa/novo/horarios', { cookie: A.cookie, form: { name: 'Lia Privada', phone: '11977776666', s: ids.services[0].id, p: 'any', date: THU } });
+    assert.equal(r.status, 200); assert.match(r.text, /Marcar horário/); assert.match(r.text, /Lia Privada/);
+  });
+
   test('primeiros passos: os serviços são salvos juntos ao continuar (antes, mudar o preço sem clicar em cada "Salvar" perdia a mudança)', async () => {
     const svcs = await db.tenant(shop.id, (q) => q.all('select id, name, duration_min, price_cents from services where active order by sort'));
     const r = await H.req('/app/s/revisa/comecar/servicos', { cookie: A.cookie, form: {

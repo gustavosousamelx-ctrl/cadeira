@@ -166,7 +166,7 @@ export function customersPage(ctx: Ctx, d: any, f: F) {
     ${d.filtro === 'sumido' ? h`<p class="hint" style="margin-bottom:10px">Clientes que não aparecem há mais de 45 dias e não têm horário marcado. Um recado no WhatsApp costuma trazer de volta.</p>` : ''}
     ${d.list.length ? h`<div class="table-wrap" tabindex="0" role="region" aria-label="Lista de clientes"><table class="tbl clients"><thead><tr><th>Cliente</th><th class="r">Visitas</th><th>Última visita</th><th class="r">Já pagou</th><th></th></tr></thead><tbody>
       ${d.list.map((c: any) => { const s = since(c.last_visit); return h`<tr><td><a href="${base}/${c.id}" class="cli"><span class="ava">${initials(c.name)}</span><span><b>${c.name}</b><small class="muted">${fmtPhone(c.phone)}</small></span></a></td>
-        <td class="r">${c.visits}${c.noshows ? h`<small class="warn-t">${c.noshows} ${c.noshows === 1 ? 'falta' : 'faltas'}</small>` : ''}</td><td>${c.next_visit ? h`<span class="tag ok">volta ${day(c.next_visit)}</span>` : c.last_visit ? h`${day(c.last_visit)} <small class="muted">há ${s} dias</small>` : h`<span class="muted">—</span>`}</td>
+        <td class="r">${c.visits}${c.noshows ? h`<small class="warn-t">${c.noshows} ${c.noshows === 1 ? 'falta' : 'faltas'}</small>` : ''}</td><td>${c.next_visit ? h`<span class="tag ok">volta ${day(c.next_visit)}</span>` : c.last_visit ? h`${day(c.last_visit)} <small class="muted">há ${s} ${s === 1 ? 'dia' : 'dias'}</small>` : h`<span class="muted">—</span>`}</td>
         <td class="r">${c.spent ? brl(c.spent) : h`<span class="muted">—</span>`}</td>
         <td class="r">${c.tag === 'sumido' ? h`<a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/55${c.phone}?text=${encodeURIComponent(`Olá, ${c.name.split(' ')[0]}! Faz tempo que você não passa na ${ctx.shop.name}. Quer marcar um horário? Agende por aqui: ${d.bookUrl ?? ''}`)}">Chamar de volta</a>` : ''}</td></tr>`; })}
     </tbody></table></div>` : h`<p class="empty">${d.q ? 'Nenhum cliente encontrado.' : 'Os clientes aparecem aqui quando marcam horário ou passam no caixa.'}</p>`}`, f);
@@ -178,7 +178,7 @@ export function customerPage(ctx: Ctx, c: any, f: F) {
     <div class="detail2">
       <div class="d-main">
         <div class="kpi-grid k3">
-          <div class="kpi"><span class="k">Visitas atendidas</span><b>${c.visits}</b><small>${c.every ? `volta a cada ~${c.every} dias` : 'frequência ainda sem histórico'}</small></div>
+          <div class="kpi"><span class="k">Visitas atendidas</span><b>${c.visits}</b><small>${c.every ? `volta a cada ${c.every <= 1 ? 'dia' : `~${c.every} dias`}` : 'frequência ainda sem histórico'}</small></div>
           <div class="kpi"><span class="k">Já pagou</span><b>${brl(c.spent)}</b><small>${c.salesN} ${c.salesN === 1 ? 'comanda' : 'comandas'}</small></div>
           <div class="kpi"><span class="k">Faltas</span><b class="${c.noshows ? 'warn-t' : ''}">${c.noshows}</b><small>horários sem aparecer</small></div>
         </div>

@@ -288,23 +288,26 @@ export function createApp(db: Db, opts: AppOptions = {}) {
     return go(c, f.back === 'hoje' ? `/app/s/${ctx.shop.slug}` : `/app/s/${ctx.shop.slug}/reserva/${id}`, { ok: 'status' });
   });
 
-  app.get(P('/novo'), async (c) => {
+  // Novo horário: a consulta de horários vai por POST, para nome e WhatsApp do cliente não ficarem no endereço (histórico, link copiado)
+  const novoPage = async (c: C, q: { s: string[]; p?: string; date?: string; name?: string; phone?: string; ask: boolean }) => {
     const ctx = await ctxOf(c);
     const services = await listServices(db, ctx.shop.id, true);
     const allPros = await listPros(db, ctx.shop.id, true);
     const pros = can(ctx, 'agenda.all') ? allPros : allPros.filter((p) => p.id === ctx.professionalId);
-    const s = c.req.queries('s') ?? [];
-    const [pickedName, pickedPhone] = splitPick(c.req.query('name') || '', c.req.query('phone') || '');
-    const sel = { s, p: c.req.query('p') || (can(ctx, 'agenda.all') ? 'any' : ctx.professionalId || ''), date: c.req.query('date') || today(ctx), name: pickedName, phone: pickedPhone };
-    const customers = await db.tenant(ctx.shop.id, (q) => q.all('select c.name, c.phone from customers c order by (select max(starts_at) from bookings b where b.customer_id = c.id) desc nulls last limit 300'));
+    const s = q.s;
+    const [pickedName, pickedPhone] = splitPick(q.name || '', q.phone || '');
+    const sel = { s, p: q.p || (can(ctx, 'agenda.all') ? 'any' : ctx.professionalId || ''), date: q.date && isDate(q.date) ? q.date : today(ctx), name: pickedName, phone: pickedPhone };
+    const customers = await db.tenant(ctx.shop.id, (qq) => qq.all('select c.name, c.phone from customers c order by (select max(starts_at) from bookings b where b.customer_id = c.id) desc nulls last limit 300'));
     let slots = null, qt = null, err: string | undefined;
-    if (s.length && c.req.query('name') !== undefined) {
-      try { const av = await db.tenant(ctx.shop.id, (q) => availability(q, ctx.shop, { date: sel.date, serviceIds: s, professionalId: sel.p, staff: true })); slots = av.slots; qt = av; }
+    if (s.length && q.ask) {
+      try { const av = await db.tenant(ctx.shop.id, (qq) => availability(qq, ctx.shop, { date: sel.date, serviceIds: s, professionalId: sel.p, staff: true })); slots = av.slots; qt = av; }
       catch (e) { if (e instanceof AppError) err = e.message; else throw e; }
-    } else if (c.req.query('name') !== undefined) err = 'Escolha ao menos um serviço.';
+    } else if (q.ask) err = 'Escolha ao menos um serviço.';
     const fl = takeFlash(c);
     return c.html(panel.newBookingPage(ctx, { services, pros, customers, sel, slots, quote: qt }, { ...fl, err: err ?? fl.err }));
-  });
+  };
+  app.get(P('/novo'), (c) => novoPage(c, { s: c.req.queries('s') ?? [], p: c.req.query('p'), date: c.req.query('date'), ask: false }));
+  app.post(P('/novo/horarios'), async (c) => { const f = await form(c); return novoPage(c, { s: ([] as string[]).concat(f.s ?? []), p: f.p, date: f.date, name: f.name, phone: f.phone, ask: true }); });
   app.post(P('/novo'), async (c) => {
     const ctx = await ctxOf(c), f = await form(c);
     const [name, phone] = splitPick(f.name ?? '', f.phone ?? '');

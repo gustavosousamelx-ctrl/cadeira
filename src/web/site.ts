@@ -9,7 +9,7 @@ function shell(title: string, main: Safe, o: { desc?: string; user?: boolean; ho
   <header class="top"><div class="wrap">
     <a class="brand" href="/" aria-label="${PLATFORM.name}, início">${LOGO}<span>${PLATFORM.name}</span></a>
     <nav aria-label="Principal">
-      <a class="hide-sm" href="${o.home ? '' : '/'}#rotina">Como funciona</a><a class="hide-sm" href="/planos">Preços</a><a class="hide-md" href="/exemplo">Barbearia de exemplo</a>
+      <a class="hide-sm" href="${o.home ? '' : '/'}#rotina">Como funciona</a><a href="/planos">Preços</a><a class="hide-md" href="/exemplo">Barbearia de exemplo</a>
       ${o.user ? h`<a class="btn red sm" href="/app">Meu painel</a>` : h`<a href="/entrar">Entrar</a><a class="btn red sm" href="/criar-conta">Testar grátis</a>`}
     </nav>
   </div></header>
@@ -226,7 +226,7 @@ export function plansPage(plans: any[], user: boolean, billingOpen = true) {
     <section class="wrap price-grid">${priceCards(plans)}</section>
     <section class="wrap faq"><h2>Perguntas frequentes</h2>
       <details><summary>Preciso de cartão para testar?</summary><p>Não. Você cria a conta, configura e testa. A cobrança só começa quando você escolhe assinar.</p></details>
-      <details><summary>Como pago?</summary><p>Pela tela Assinatura do painel. O pagamento é processado por um intermediador de pagamentos; nós não guardamos dados de cartão.</p></details>
+      <details><summary>Como pago?</summary><p>Na fase de lançamento a assinatura online ainda está fechada: você usa o teste grátis e, se quiser continuar quando ele acabar, fala com a gente que liberamos mais tempo. Quando abrir, o pagamento será feito pela tela Assinatura do painel, por um intermediador de pagamentos (Pix, boleto ou cartão); nós não guardamos dados de cartão. Nada é cobrado sem você escolher um plano.</p></details>
       <details><summary>Posso trocar de plano?</summary><p>Sim. Para um plano maior vale na hora; para um menor, a partir da próxima mensalidade.</p></details>
       <details><summary>E se eu cancelar?</summary><p>O acesso continua até o fim do período pago. Seus dados ficam guardados caso queira voltar.</p></details>
       <details><summary>O que acontece se a mensalidade atrasar?</summary><p>Você recebe aviso no painel e tem alguns dias de tolerância. Depois disso a página de agendamento sai do ar até o pagamento.</p></details>

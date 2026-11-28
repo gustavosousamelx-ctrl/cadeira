@@ -298,7 +298,7 @@ export function newBookingPage(ctx: Ctx, d: { services: any[]; pros: any[]; cust
   const base = `/app/s/${ctx.shop.slug}`;
   const s = d.sel;
   return layout(ctx, 'novo', 'Novo horário', h`
-    <form method="get" class="nb" action="${base}/novo#horarios">
+    <form method="post" class="nb" action="${base}/novo/horarios#horarios">
       <section class="block nb-step"><h2><span class="n">1</span>Cliente</h2>
         <div class="grid2">
           <div class="field"><label for="nm">Nome</label><input class="input" id="nm" name="name" value="${s.name}" required maxlength="80" autocomplete="off" list="clientes" placeholder="Digite para buscar quem já veio"></div>
